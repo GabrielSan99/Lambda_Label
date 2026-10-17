@@ -1,0 +1,243 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block title %}Machine Learning — {{ project.name }}{% endblock %}
+{% block style %}
+  .page { padding: 2rem 2.4rem 3rem 3.6rem; max-width: 1180px; }
+  .page h1 { font-size: 1.6rem; }
+  .lead { color: var(--muted); margin-top: .35rem; font-size: .92rem; line-height: 1.5; max-width: 760px; }
+  .section-title { font-size: .74rem; font-weight: 700; color: var(--muted2); text-transform: uppercase; letter-spacing: .06em; margin: 2rem 0 .7rem; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 1.2rem 1.3rem; }
+  .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+  .card h2 { font-size: 1rem; margin-bottom: .3rem; }
+  .card .sub { font-size: .82rem; color: var(--muted); line-height: 1.5; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin: .7rem 0; }
+  .seg a { padding: 6px 11px; font-size: .82rem; color: var(--muted); text-decoration: none; background: var(--panel); }
+  .seg a.on { background: var(--blue-soft); color: var(--blue); font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  th { text-align: left; font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted2); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .status-line { margin-top: .8rem; font-size: .84rem; padding: 8px 10px; border-radius: 8px; }
+  .status-line.ok { background: var(--green-soft); color: var(--green); }
+  .status-line.no { background: var(--amber-soft); color: var(--amber); }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-top: .8rem; }
+  .form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: .78rem; color: var(--muted); }
+  .actions { display: flex; gap: 8px; margin-top: 1rem; align-items: center; flex-wrap: wrap; }
+  #estimate { font-size: .82rem; color: var(--muted); }
+  .result-head { display: flex; gap: 2rem; align-items: flex-end; flex-wrap: wrap; }
+  .hero { font-size: 2.4rem; font-weight: 700; letter-spacing: -.02em; line-height: 1; }
+  .hero-sub { font-size: .8rem; color: var(--muted); margin-top: .3rem; }
+  .facts { display: grid; grid-template-columns: auto auto; gap: 3px 14px; font-size: .8rem; }
+  .facts dt { color: var(--muted2); } .facts dd { color: var(--ink); }
+  .cm { margin-top: 1rem; overflow: auto; }
+  .cm table { width: auto; }
+  .cm td.cell { text-align: center; min-width: 54px; font-variant-numeric: tabular-nums; border: 2px solid var(--panel); border-radius: 4px; }
+  .cm th.rowh { text-transform: none; letter-spacing: 0; font-size: .78rem; color: var(--ink); white-space: nowrap; }
+  .imp { height: 240px; margin-top: .6rem; background: var(--viz-surface); border-radius: 10px; }
+  .flow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .flow .card { padding: 1rem 1.1rem; }
+  .flow-num { width: 24px; height: 24px; border-radius: 50%; background: var(--blue-soft); color: var(--blue); display: inline-flex;
+    align-items: center; justify-content: center; font-size: .8rem; font-weight: 700; margin-right: 6px; }
+  .flow p { font-size: .82rem; color: var(--muted); line-height: 1.5; margin: .5rem 0 .6rem; }
+  .models { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .model { display: flex; flex-direction: column; gap: .6rem; }
+  .model-top { display: flex; align-items: center; gap: 8px; }
+  .model-name { font-weight: 700; }
+  .pill { margin-left: auto; font-size: .72rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--panel2); color: var(--muted); border: 1px solid var(--line); }
+  .pill.on { background: var(--green-soft); color: var(--green); border-color: transparent; }
+  .current { font-size: .8rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .upl { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .upl input[type=file] { font-size: .76rem; max-width: 100%; }
+  .msg { font-size: .78rem; min-height: 1em; }
+  .msg.ok { color: var(--green); } .msg.err { color: var(--red); }
+  @media (max-width: 960px) { .cols, .flow, .models { grid-template-columns: 1fr; } .page { padding: 1.4rem 16px 2rem 52px; } }
+{% endblock %}
+{% block content %}
+<main class="page">
+  <h1>Machine Learning</h1>
+  <p class="lead">Classificação por <b>assinatura espectral</b> (treina aqui mesmo, com os espectros dos ROIs) e modelos <b>YOLO</b> de segmentação/detecção (treinados no seu PC com GPU) usados pelo botão 🤖 IA do editor.</p>
+
+  <h2 class="section-title">Classificador espectral</h2>
+  <div class="cols">
+    <div class="card">
+      <h2>Dataset</h2>
+      <div class="sub">Cada ROI medido vira uma amostra; as features são o espectro médio em cada banda{% if dataset.n_features %} ({{ dataset.n_features }} banda{{ dataset.n_features|pluralize }}){% endif %}.</div>
+      <div class="seg">
+        {% for k, l in label_sources.items %}<a href="?source={{ k }}" class="{% if source == k %}on{% endif %}">{{ l }}</a>{% endfor %}
+      </div>
+      {% if dataset.summary %}
+      <table><thead><tr><th>Classe</th><th class="num">ROIs</th><th class="num">Imagens</th></tr></thead><tbody>
+        {% for c, v in dataset.summary.items %}<tr><td>{{ c }}</td><td class="num">{{ v.rois }}</td><td class="num">{{ v.samples }}</td></tr>{% endfor %}
+      </tbody></table>
+      {% endif %}
+      <div class="status-line {% if dataset.ready %}ok{% else %}no{% endif %}">
+        {% if dataset.ready %}✓ Pronto: {{ dataset.n_samples }} ROIs. Validação cruzada {% if dataset.cv.0 == 'group' %}por imagem{% else %}por ROI (há classe em uma imagem só){% endif %}, {{ dataset.cv.1 }} folds.
+        {% else %}⚠ {{ dataset.reason }}{% endif %}
+      </div>
+      {% if dataset.info.unlabeled or dataset.info.incompatible or dataset.info.incomplete %}
+      <p class="sub" style="margin-top:.6rem">Fora do dataset:
+        {% if dataset.info.unlabeled %}{{ dataset.info.unlabeled }} sem rótulo · {% endif %}
+        {% if dataset.info.incompatible %}{{ dataset.info.incompatible }} de equipamento com outra faixa de bandas · {% endif %}
+        {% if dataset.info.incomplete %}{{ dataset.info.incomplete }} com banda sem valor{% endif %}</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>Treinar</h2>
+      <div class="sub">Os dados são padronizados (StandardScaler) antes do algoritmo. O modelo treinado substitui o classificador do projeto.</div>
+      <div class="form-grid">
+        <label>Algoritmo<select id="algo" onchange="renderParams()">{% for k, a in algorithms.items %}<option value="{{ k }}">{{ a.label }}</option>{% endfor %}</select></label>
+      </div>
+      <div class="form-grid" id="params"></div>
+      <div class="actions">
+        <button class="btn" id="btn-est" onclick="estimate()" {% if not dataset.ready %}disabled{% endif %}>⏱ Estimar tempo</button>
+        <button class="btn btn-primary" id="btn-train" onclick="train()" {% if not dataset.ready %}disabled{% endif %}>▶ Treinar</button>
+        <span id="estimate"></span>
+      </div>
+    </div>
+  </div>
+
+  {% if model_info.algorithm %}
+  <div class="card" style="margin-top:16px">
+    <h2>Modelo atual</h2>
+    <div class="result-head" style="margin-top:.6rem">
+      <div><div class="hero" id="acc"></div><div class="hero-sub">acurácia na validação cruzada (média ± desvio)</div></div>
+      <dl class="facts">
+        <dt>Algoritmo</dt><dd>{{ model_info.algorithm_label }}</dd>
+        <dt>Rótulo</dt><dd>{% if model_info.label_source == 'roi' %}label do ROI{% else %}rótulo da imagem{% endif %}</dd>
+        <dt>Validação</dt><dd>{{ model_info.cv_folds }} folds {% if model_info.cv_mode == 'group' %}por imagem{% else %}por ROI{% endif %}</dd>
+        <dt>Amostras</dt><dd>{{ model_info.n_samples }} ROIs · {{ model_info.n_features }} bandas</dd>
+        <dt>Treinado em</dt><dd>{{ model_info.trained_at|slice:":10" }} {{ model_info.trained_at|slice:"11:16" }} ({{ model_info.train_seconds }} s)</dd>
+      </dl>
+    </div>
+    <div class="cols" style="margin-top:1rem">
+      <div><h2 style="font-size:.9rem">Matriz de confusão</h2><div class="sub">linhas = classe real, colunas = prevista (validação cruzada)</div><div class="cm" id="cm"></div></div>
+      <div><h2 style="font-size:.9rem">Importância por banda</h2><div class="sub" id="imp-sub"></div><div class="imp" id="imp"></div></div>
+    </div>
+  </div>
+  {% endif %}
+
+  <h2 class="section-title">Modelos YOLO (segmentação, detecção, classificação de imagem)</h2>
+  <div class="flow">
+    <div class="card"><b><span class="flow-num">1</span>Exporte o dataset</b>
+      <p>Na grade de amostras, selecione as anotadas → ⬇ Exportar → YOLO segmentação ({{ seg_count }} prontas) ou detecção ({{ det_count }} prontas).</p>
+      <a class="btn" href="{% url 'project' project.id %}">Ir para as amostras</a></div>
+    <div class="card"><b><span class="flow-num">2</span>Treine no seu PC</b>
+      <p>A ferramenta de treino (a mesma do SpectralCrops) roda com GPU. Baixe uma vez e aponte o <code>data.yaml</code> de cada export.</p>
+      <a class="btn btn-primary" href="{% url 'ml_kit' %}">⬇ Baixar ferramenta</a></div>
+    <div class="card"><b><span class="flow-num">3</span>Envie o modelo</b>
+      <p>Envie o <code>best.pt</code> no card certo abaixo. O botão 🤖 IA do editor passa a usar o modelo. (Requer <code>pip install ultralytics</code> no servidor.)</p></div>
+  </div>
+  <div class="models" style="margin-top:12px">
+    <div class="card model" data-kind="seg">
+      <div class="model-top"><span class="model-name">Segmentação</span><span class="pill {% if project.model_seg %}on{% endif %}">{% if project.model_seg %}Ativo{% else %}Sem modelo{% endif %}</span></div>
+      <div class="current" title="{{ project.model_seg.name }}">{{ project.model_seg.name|default:"Nenhum modelo enviado" }}</div>
+      <div class="upl"><input type="file" accept=".pt"><button class="btn btn-primary" onclick="upload('seg', this)">Enviar</button>
+        {% if project.model_seg %}<button class="btn btn-danger" onclick="removeModel('seg')">Remover</button>{% endif %}</div>
+      <div class="msg"></div>
+    </div>
+    <div class="card model" data-kind="det">
+      <div class="model-top"><span class="model-name">Detecção</span><span class="pill {% if project.model_det %}on{% endif %}">{% if project.model_det %}Ativo{% else %}Sem modelo{% endif %}</span></div>
+      <div class="current" title="{{ project.model_det.name }}">{{ project.model_det.name|default:"Nenhum modelo enviado" }}</div>
+      <div class="upl"><input type="file" accept=".pt"><button class="btn btn-primary" onclick="upload('det', this)">Enviar</button>
+        {% if project.model_det %}<button class="btn btn-danger" onclick="removeModel('det')">Remover</button>{% endif %}</div>
+      <div class="msg"></div>
+    </div>
+    <div class="card model" data-kind="cls">
+      <div class="model-top"><span class="model-name">Classificação</span><span class="pill {% if cls_kind %}on{% endif %}">{% if cls_kind == 'spectral' %}Espectral{% elif cls_kind == 'yolo' %}YOLO-cls{% else %}Sem modelo{% endif %}</span></div>
+      <div class="current" title="{{ project.model_cls.name }}">{{ project.model_cls.name|default:"Nenhum modelo" }}</div>
+      <div class="upl"><input type="file" accept=".pt"><button class="btn btn-primary" onclick="upload('cls', this)" title="Substitui o classificador espectral">Enviar .pt</button>
+        {% if project.model_cls %}<button class="btn btn-danger" onclick="removeModel('cls')">Remover</button>{% endif %}</div>
+      <div class="msg"></div>
+    </div>
+  </div>
+</main>
+{{ algorithms|json_script:"algos" }}
+{{ model_info|json_script:"model-info" }}
+{% endblock %}
+{% block script %}
+<script src="{% static 'core/charts.js' %}"></script>
+<script>
+const PID = {{ project.id }}, SOURCE = '{{ source }}';
+const ALGOS = JSON.parse(document.getElementById('algos').textContent);
+const INFO = JSON.parse(document.getElementById('model-info').textContent);
+
+function renderParams() {
+  const spec = ALGOS[document.getElementById('algo').value].params;
+  document.getElementById('params').innerHTML = Object.entries(spec).map(([name, p]) => {
+    if (p.type === 'choice')
+      return `<label>${name}<select data-p="${name}">${p.choices.map(c => `<option ${c === p.default ? 'selected' : ''}>${c}</option>`).join('')}</select></label>`;
+    const ph = p.type === 'int_or_none' ? 'placeholder="sem limite"' : '';
+    return `<label>${name}<input type="number" data-p="${name}" min="${p.min}" max="${p.max}" step="${p.step}" value="${p.default ?? ''}" ${ph}></label>`;
+  }).join('');
+  document.getElementById('estimate').textContent = '';
+}
+function params() {
+  const out = {};
+  document.querySelectorAll('[data-p]').forEach(el => { out[el.dataset.p] = el.value; });
+  return out;
+}
+function fmtSecs(s) { return s < 1 ? `${Math.round(s * 1000)} ms` : s < 90 ? `${s.toFixed(1)} s` : `${(s / 60).toFixed(1)} min`; }
+async function estimate() {
+  const btn = document.getElementById('btn-est'); btn.disabled = true;
+  document.getElementById('estimate').textContent = 'Medindo um ajuste…';
+  const { ok, data } = await apiJSON(`/projects/${PID}/ml/estimate/`, { algorithm: document.getElementById('algo').value, params: params(), source: SOURCE });
+  btn.disabled = false;
+  document.getElementById('estimate').textContent = ok
+    ? `≈ ${fmtSecs(data.estimated_seconds)} (${data.cv_folds} folds + modelo final, ${data.n_samples} ROIs)` : data.error;
+}
+async function train() {
+  const st = await runJob(`/projects/${PID}/ml/train/`, { algorithm: document.getElementById('algo').value, params: params(), source: SOURCE }, 'Treinando o classificador…');
+  if (st) location.reload();
+}
+async function upload(kind, btn) {
+  const card = btn.closest('.model'), input = card.querySelector('input[type=file]'), msg = card.querySelector('.msg');
+  if (!input.files[0]) { msg.className = 'msg err'; msg.textContent = 'Escolha um arquivo .pt.'; return; }
+  const fd = new FormData(); fd.append('type', kind); fd.append('file', input.files[0]);
+  btn.disabled = true; msg.className = 'msg'; msg.textContent = 'Enviando…';
+  const r = await fetch(`/projects/${PID}/ml/model/`, { method: 'POST', headers: { 'X-CSRFToken': CSRF }, body: fd });
+  const d = await r.json().catch(() => ({}));
+  btn.disabled = false;
+  if (!r.ok || !d.ok) { msg.className = 'msg err'; msg.textContent = d.error || 'Falha no envio.'; return; }
+  location.reload();
+}
+async function removeModel(kind) {
+  if (!confirm('Remover este modelo do projeto?')) return;
+  const { ok, data } = await apiJSON(`/projects/${PID}/ml/model/delete/`, { type: kind });
+  if (!ok) { alert(data.error); return; }
+  location.reload();
+}
+
+function drawResult() {
+  if (!INFO.algorithm) return;
+  const pct = v => (v * 100).toFixed(1).replace('.', ',');
+  document.getElementById('acc').textContent = `${pct(INFO.cv_accuracy_mean)}% ± ${pct(INFO.cv_accuracy_std)}`;
+  // matriz de confusão: rampa sequencial azul (intensidade = fração da linha), número sempre escrito
+  const cm = INFO.confusion_matrix, cls = INFO.classes;
+  const seq = ['var(--panel2)', 'var(--seq-100)', 'var(--seq-300)', 'var(--seq-450)', 'var(--seq-600)'];
+  let html = '<table><thead><tr><th></th>' + cls.map(c => `<th class="num">${escHtml(c)}</th>`).join('') + '</tr></thead><tbody>';
+  cm.forEach((row, i) => {
+    const tot = row.reduce((a, b) => a + b, 0) || 1;
+    html += `<tr><th class="rowh">${escHtml(cls[i])}</th>` + row.map(v => {
+      const f = v / tot, k = v === 0 ? 0 : Math.min(4, 1 + Math.floor(f * 4));
+      const ink = k >= 3 ? '#fff' : 'var(--ink)';
+      return `<td class="cell" style="background:${seq[k]};color:${ink}" title="${v} de ${tot} (${(f * 100).toFixed(0)}%)">${v}</td>`;
+    }).join('') + '</tr>';
+  });
+  document.getElementById('cm').innerHTML = html + '</tbody></table>';
+  const fi = INFO.feature_importance;
+  const imp = document.getElementById('imp');
+  if (!fi) { document.getElementById('imp-sub').textContent = 'Este algoritmo não expõe importância por banda.'; imp.remove(); return; }
+  const isRF = INFO.algorithm === 'random_forest';
+  document.getElementById('imp-sub').textContent = isRF ? 'Redução média de impureza (Random Forest)' : '|coeficiente| médio entre as classes (dados padronizados)';
+  const wl = fi.every(f => f.wavelength != null) ? fi.map(f => f.wavelength) : null;
+  const tot = fi.reduce((a, f) => a + f.importance, 0) || 1;
+  spectrumChart(imp, { x: wl, labels: fi.map(f => f.band), yLabel: '% do total',
+    series: [{ label: 'importância', color: 'var(--s1)', mean: fi.map(f => f.importance / tot * 100), std: null }],
+    ariaLabel: 'Importância de cada banda' });
+}
+renderParams();
+drawResult();
+let rt = null; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawResult, 150); });
+</script>
+{% endblock %}

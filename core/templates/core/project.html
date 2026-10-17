@@ -1,0 +1,509 @@
+{% extends "core/base.html" %}
+{% load l10n %}
+{% block title %}{{ project.name }} — Lambda Label{% endblock %}
+{% block style %}
+  header.top { background: var(--panel); padding: 14px 24px 14px 56px; display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header.top h1 { font-size: 1.2rem; }
+  header.top .sub { font-size: .8rem; color: var(--muted); margin-top: 2px; }
+  .progress-wrap { background: var(--line); border-radius: 4px; height: 8px; width: 200px; }
+  .progress-bar { background: var(--green); height: 8px; border-radius: 4px; }
+  .progress-label { font-size: .75rem; color: var(--muted); margin-top: 4px; text-align: right; font-variant-numeric: tabular-nums; }
+  .head-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  .toolbar { padding: 10px 24px 10px 56px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    background: var(--panel2); border-bottom: 1px solid var(--line); }
+  .toolbar input[type=search] { width: 220px; }
+  #sel-count { font-size: .82rem; color: var(--blue); display: none; white-space: nowrap; }
+  .tb-right { margin-left: auto; display: flex; gap: 8px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; padding: 20px 24px 20px 56px; }
+  .card { background: var(--panel); border: 2px solid var(--line); border-radius: 10px; overflow: hidden; cursor: pointer;
+    transition: border-color .2s, transform .15s; text-decoration: none; color: inherit; display: block; position: relative; }
+  .card:hover { border-color: var(--blue); transform: translateY(-2px); }
+  .card.done { border-color: var(--green); }
+  .card.error { border-color: var(--red); cursor: default; }
+  .card.selected { border-color: var(--blue) !important; box-shadow: 0 0 0 2px var(--blue-soft); }
+  .card-select { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #cdd3db;
+    background: #fff; z-index: 3; display: flex; align-items: center; justify-content: center; font-size: 12px; color: transparent; }
+  .card.selected .card-select { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .card-delete { position: absolute; top: 8px; left: 8px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff;
+    background: rgba(17,24,39,.6); z-index: 3; display: flex; align-items: center; justify-content: center; font-size: 12px;
+    color: #fff; opacity: 0; transition: opacity .15s; }
+  .card:hover .card-delete { opacity: 1; }
+  .card-delete:hover { background: #dc2626; border-color: #dc2626; }
+  .card-thumb { height: 130px; background: #0b0d13; display: flex; align-items: center; justify-content: center; overflow: hidden; color: #6b7280; font-size: 1.8rem; }
+  .card-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .card-body { padding: 9px 12px 6px; }
+  .card-name { font-size: .82rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-meta { font-size: .7rem; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-err { font-size: .72rem; color: var(--red); margin-top: 4px; line-height: 1.35; }
+  .badge-row { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px; }
+  .badge { display: inline-block; padding: 2px 7px; border-radius: 12px; font-size: .67rem; font-weight: 600; background: var(--panel2); color: var(--muted); border: 1px solid var(--line); }
+  .b-done { background: var(--green-soft); color: var(--green); border-color: transparent; }
+  .b-pending { background: var(--amber-soft); color: var(--amber); border-color: transparent; }
+  .b-dev { background: var(--blue-soft); color: var(--blue); border-color: transparent; }
+  .card-label-row { padding: 6px 12px 8px; border-top: 1px solid var(--line); }
+  .card-label, .card-note { font-size: .72rem; color: var(--muted); cursor: pointer; display: inline-block; padding: 2px 6px; border-radius: 4px;
+    border: 1px dashed var(--line); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card-note { display: block; margin-top: 5px; }
+  .card-label:hover, .card-note:hover { border-color: var(--blue); color: var(--blue); }
+  .has-value { border-style: solid; color: var(--ink); background: var(--panel2); }
+  .inline-input { font-size: .74rem; width: 100%; padding: 2px 6px; border-color: var(--blue); }
+  #no-results { display: none; padding: 40px 24px; color: var(--muted); text-align: center; }
+  .empty { margin: 40px 24px 40px 56px; text-align: center; padding: 3.5rem 1rem; color: var(--muted); border: 1.5px dashed var(--line); border-radius: 14px; }
+  .empty .big { font-size: 2.4rem; margin-bottom: .4rem; }
+
+  /* importação */
+  .imp-box { width: 760px; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 12px 0 14px; }
+  .tab { background: none; border: none; padding: 8px 12px; font: inherit; font-size: .86rem; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; }
+  .tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+  .drop { border: 1.5px dashed var(--muted2); border-radius: 12px; padding: 1.4rem; text-align: center; color: var(--muted); font-size: .88rem; line-height: 1.6; }
+  .drop.dragover { border-color: var(--blue); background: var(--blue-soft); }
+  .drop .btns { display: flex; gap: 8px; justify-content: center; margin-top: 10px; flex-wrap: wrap; }
+  .drop input[type=file] { display: none; }
+  .opt { display: flex; align-items: center; gap: 8px; font-size: .84rem; color: var(--muted); margin-top: 12px; }
+  .path-row { display: flex; gap: 8px; }
+  .path-row input { flex: 1; }
+  .hint { font-size: .78rem; color: var(--muted2); line-height: 1.45; margin-top: 8px; }
+  .items { margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; max-height: 340px; overflow: auto; }
+  .items table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  .items th { position: sticky; top: 0; background: var(--panel2); text-align: left; font-size: .7rem; text-transform: uppercase;
+    letter-spacing: .04em; color: var(--muted2); padding: 7px 8px; border-bottom: 1px solid var(--line); }
+  .items td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .items tr.bad td { color: var(--red); }
+  .items .nm { font-weight: 600; color: var(--ink); }
+  .items .rel { font-size: .72rem; color: var(--muted2); word-break: break-all; }
+  .num { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+  .scan-summary { font-size: .84rem; margin-top: 12px; color: var(--muted); }
+  .mode-row { display: flex; gap: 18px; margin-top: 12px; font-size: .84rem; flex-wrap: wrap; }
+  .mode-row label { display: flex; gap: 6px; align-items: flex-start; max-width: 340px; color: var(--ink); }
+  .mode-row small { display: block; color: var(--muted); font-size: .75rem; }
+  .upload-prog { margin-top: 12px; display: none; }
+
+  /* exportação */
+  .exp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+  .exp-opt { padding: 14px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); color: var(--ink);
+    cursor: pointer; text-align: center; font: inherit; line-height: 1.4; }
+  .exp-opt:hover:not(:disabled) { border-color: var(--blue); background: var(--blue-soft); }
+  .exp-opt:disabled { opacity: .4; cursor: not-allowed; }
+  .exp-opt .ic { font-size: 1.4rem; display: block; margin-bottom: 4px; }
+  .exp-opt .lb { font-size: .85rem; font-weight: 600; display: block; }
+  .exp-opt .sb { font-size: .72rem; color: var(--muted); display: block; margin-top: 2px; }
+  .field { display: block; margin-top: 12px; font-size: .8rem; color: var(--muted); }
+  .field input, .field textarea { width: 100%; margin-top: 4px; }
+  @media (max-width: 700px) { .grid, .toolbar { padding-left: 52px; padding-right: 16px; } header.top { padding-left: 52px; } }
+{% endblock %}
+{% block content %}
+<header class="top">
+  <div>
+    <h1>{{ project.name }}</h1>
+    <div class="sub">{% if project.description %}{{ project.description }} · {% endif %}{% if project.mm_per_pixel %}{{ project.mm_per_pixel }} mm/px padrão{% else %}sem mm/px padrão{% endif %}</div>
+  </div>
+  <div class="head-actions">
+    <div><div class="progress-wrap"><div class="progress-bar" style="width: {{ progress_pct }}%"></div></div>
+      <div class="progress-label">{{ annotated }} / {{ total }} anotadas</div></div>
+    <button class="btn" onclick="openModal('settings-modal')">⚙ Projeto</button>
+    <button class="btn btn-primary" onclick="openImport()">⬆ Importar imagens</button>
+  </div>
+</header>
+
+{% if cards %}
+<div class="toolbar">
+  <input type="search" id="search" placeholder="Buscar nome ou observação..." oninput="filterCards()">
+  <select id="f-status" onchange="filterCards()">
+    <option value="all">Todas</option><option value="done">Anotadas</option><option value="pending">Pendentes</option>
+    <option value="box">Com boxes</option><option value="ellipse">Com elipses</option><option value="poly">Com polígonos</option>
+    <option value="point">Com pontos</option><option value="error">Com erro</option>
+  </select>
+  <select id="f-device" onchange="filterCards()"><option value="">Todos os equipamentos</option>
+    {% for v, l in devices %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+  <select id="f-label" onchange="filterCards()"><option value="">Todos os rótulos</option>
+    {% for l in all_labels %}<option value="{{ l|lower }}">{{ l }}</option>{% endfor %}</select>
+  <select id="f-note" onchange="filterCards()"><option value="">Todas as observações</option>
+    {% for n in all_notes %}<option value="{{ n }}">{{ n|truncatechars:40 }}</option>{% endfor %}</select>
+  <button class="btn" onclick="selectVisible()">✓ Selecionar visíveis</button>
+  <button class="btn" onclick="clearSelection()">✗ Limpar</button>
+  <span id="sel-count"></span>
+  <div class="tb-right"><button class="btn btn-primary" onclick="openExport()">⬇ Exportar</button></div>
+</div>
+
+<div class="grid" id="grid">
+  {% for c in cards %}{% with s=c.s %}
+  <a class="card {% if s.status == 'error' %}error{% elif c.annotated %}done{% endif %}"
+     {% if s.status == 'ready' %}href="{% url 'annotate' s.id %}"{% endif %}
+     data-id="{{ s.id }}" data-name="{{ s.name|lower }}" data-device="{{ s.device }}" data-state="{{ s.status }}"
+     data-status="{% if c.annotated %}done{% else %}pending{% endif %}"
+     data-boxes="{{ c.n_boxes }}" data-ellipses="{{ c.n_ellipses }}" data-polygons="{{ c.n_polygons }}" data-points="{{ c.n_points }}"
+     data-rois="{{ s.n_rois }}" data-label="{{ c.ann.image_label|default:''|lower }}" data-note="{{ c.ann.image_note|default:'' }}">
+    <div class="card-select" onclick="toggleSelect(this, event)">✓</div>
+    <div class="card-delete" title="Excluir amostra" onclick="deleteSample(event, {{ s.id }})">✕</div>
+    <div class="card-thumb">{% if s.status == 'ready' %}<img src="{% url 'sample_thumb' s.id %}" alt="" loading="lazy">{% elif s.status == 'error' %}⚠{% else %}⏳{% endif %}</div>
+    <div class="card-body">
+      <div class="card-name" title="{{ s.name }}">{{ s.name }}</div>
+      <div class="card-meta" title="{{ s.source_path }}">{{ s.width }}×{{ s.height }} · {{ s.n_bands }} banda{{ s.n_bands|pluralize }}{% if s.linked %} · vinculada{% endif %}</div>
+      {% if s.status == 'error' %}<div class="card-err">{{ s.error|truncatechars:160 }}</div>{% endif %}
+      <div class="badge-row">
+        <span class="badge b-dev">{{ s.device_short }}</span>
+        {% if c.annotated %}<span class="badge b-done">✓</span>
+          {% if c.n_boxes %}<span class="badge">▢ {{ c.n_boxes }}</span>{% endif %}
+          {% if c.n_ellipses %}<span class="badge">⬭ {{ c.n_ellipses }}</span>{% endif %}
+          {% if c.n_polygons %}<span class="badge">⬡ {{ c.n_polygons }}</span>{% endif %}
+          {% if c.n_points %}<span class="badge">· {{ c.n_points }}</span>{% endif %}
+        {% elif s.status == 'ready' %}<span class="badge b-pending">Pendente</span>{% endif %}
+      </div>
+    </div>
+    {% if s.status == 'ready' %}
+    <div class="card-label-row" onclick="event.stopPropagation(); event.preventDefault();">
+      <span class="card-label {% if c.ann.image_label %}has-value{% endif %}" onclick="editLabel(this, {{ s.id }})">{% if c.ann.image_label %}🏷 {{ c.ann.image_label }}{% else %}+ rótulo{% endif %}</span>
+      <span class="card-note {% if c.ann.image_note %}has-value{% endif %}" onclick="editNote(this, {{ s.id }})" title="{{ c.ann.image_note|default:'Adicionar observação' }}">{% if c.ann.image_note %}📝 {{ c.ann.image_note }}{% else %}+ observação{% endif %}</span>
+    </div>
+    {% endif %}
+  </a>
+  {% endwith %}{% endfor %}
+</div>
+<div id="no-results">Nenhuma amostra encontrada.</div>
+{% else %}
+<div class="empty"><div class="big">⬆</div><p>Projeto vazio. Importe imagens já coletadas em outro equipamento pra começar a anotar.</p>
+  <p style="margin-top:1rem"><button class="btn btn-primary" onclick="openImport()">Importar imagens</button></p></div>
+{% endif %}
+
+<!-- ── Importação ── -->
+<div class="modal" id="import-modal">
+  <div class="modal-box imp-box">
+    <h3>Importar imagens</h3>
+    <p class="muted" style="font-size:.84rem">Arquivos de VideometerLab (.hips), hiperespectral ENVI (.hdr + .bil/.bip/.bsq/.raw), pastas do SpectralCrops, imagens (PNG/JPG/TIFF) e cubos .npy. O formato é reconhecido sozinho.</p>
+    <div id="imp-step1">
+      <div class="tabs">
+        <button class="tab active" data-tab="upload" onclick="setTab('upload')">Enviar do computador</button>
+        {% if allow_local %}<button class="tab" data-tab="local" onclick="setTab('local')">Pasta no servidor</button>{% endif %}
+      </div>
+      <div id="tab-upload">
+        <div class="drop" id="drop">
+          Arraste arquivos ou uma pasta aqui
+          <div class="btns">
+            <label class="btn">📄 Escolher arquivos<input type="file" id="in-files" multiple></label>
+            <label class="btn">📁 Escolher pasta<input type="file" id="in-dir" webkitdirectory multiple></label>
+          </div>
+          <div id="chosen" class="hint"></div>
+        </div>
+        <p class="hint">ENVI: envie o <code>.hdr</code> junto com o arquivo de dados. Cubos de vários GB: se o app roda nesta máquina, prefira “Pasta no servidor” com o modo vincular — nada é copiado.</p>
+      </div>
+      {% if allow_local %}
+      <div id="tab-local" hidden>
+        <div class="path-row"><input type="text" id="in-path" placeholder="ex.: D:\Coletas\Videometer\2026-10-17  ou  /dados/hiperespectral"></div>
+        <p class="hint">Arquivo ou pasta (lida recursivamente) no disco onde o Lambda Label está rodando.</p>
+      </div>
+      {% endif %}
+      <label class="opt"><input type="checkbox" id="opt-group" checked> Agrupar imagens com o mesmo prefixo (ex.: <code>A1_RGB.jpg</code> + <code>A1_CHL.jpg</code>) numa amostra</label>
+      <div class="upload-prog" id="upload-prog"><div class="job-track"><div class="job-fill" id="up-fill"></div></div><div class="job-pct" id="up-pct">Enviando… 0%</div></div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal('import-modal')">Cancelar</button>
+        <button class="btn btn-primary" id="btn-scan" onclick="scan()">Analisar arquivos</button>
+      </div>
+    </div>
+    <div id="imp-step2" hidden>
+      <div class="scan-summary" id="scan-summary"></div>
+      <div class="items"><table><thead><tr><th><input type="checkbox" id="chk-all" checked onchange="document.querySelectorAll('.chk-item:not(:disabled)').forEach(c=>c.checked=this.checked)"></th>
+        <th>Amostra</th><th>Formato</th><th>Dimensões</th><th class="num">Tamanho</th></tr></thead><tbody id="items-body"></tbody></table></div>
+      <div class="mode-row" id="mode-row" hidden>
+        <label><input type="radio" name="mode" value="link" checked><span>Vincular <small>ENVI e .npy são lidos do local original (sem cópia). Os demais formatos são convertidos para a pasta do app.</small></span></label>
+        <label><input type="radio" name="mode" value="copy"><span>Copiar <small>Tudo vai para a pasta do app — independe do original.</small></span></label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="backToStep1()">← Voltar</button>
+        <button class="btn btn-primary" id="btn-import" onclick="runImport()">Importar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Exportação ── -->
+<div class="modal" id="export-modal" onclick="if(event.target===this)closeModal('export-modal')">
+  <div class="modal-box" style="width:620px">
+    <h3>Exportar</h3>
+    <div class="muted" id="exp-summary" style="font-size:.85rem"></div>
+    <div class="exp-grid">
+      <button class="exp-opt" id="exp-seg" onclick="doExport('seg')"><span class="ic">⬡</span><span class="lb">YOLO segmentação</span><span class="sb" id="sb-seg"></span></button>
+      <button class="exp-opt" id="exp-det" onclick="doExport('det')"><span class="ic">▢</span><span class="lb">YOLO detecção</span><span class="sb" id="sb-det"></span></button>
+      <button class="exp-opt" id="exp-coco" onclick="doExport('coco')"><span class="ic">{ }</span><span class="lb">COCO JSON</span><span class="sb" id="sb-coco"></span></button>
+      <button class="exp-opt" id="exp-samples" onclick="doExport('samples')"><span class="ic">🏷</span><span class="lb">Amostras + cubos</span><span class="sb" id="sb-samples"></span></button>
+      <button class="exp-opt" id="exp-rois" onclick="doExport('rois')"><span class="ic">📊</span><span class="lb">Espectros por ROI</span><span class="sb" id="sb-rois"></span></button>
+    </div>
+    <label class="opt"><input type="checkbox" id="opt-cube" checked> Incluir o cubo espectral completo (.npy) no export de amostras</label>
+    <p class="hint">YOLO/COCO usam a imagem colorida de anotação. “Amostras + cubos” segue o mesmo <code>anotacoes.json</code> do SpectralCrops, com todas as bandas.</p>
+    <div class="modal-actions"><button class="btn" onclick="closeModal('export-modal')">Fechar</button></div>
+  </div>
+</div>
+
+<!-- ── Configurações do projeto ── -->
+<div class="modal" id="settings-modal" onclick="if(event.target===this)closeModal('settings-modal')">
+  <div class="modal-box">
+    <h3>Projeto</h3>
+    <label class="field">Nome<input type="text" id="s-name" value="{{ project.name }}"></label>
+    <label class="field">Descrição<textarea id="s-desc" rows="3">{{ project.description }}</textarea></label>
+    <label class="field">mm por pixel padrão <span class="muted">(usado nas amostras cujo arquivo não traz essa informação)</span>
+      <input type="number" id="s-mmpp" step="any" min="0" value="{{ project.mm_per_pixel|default_if_none:''|unlocalize }}" placeholder="ex.: 0.0389"></label>
+    <div class="modal-actions" style="justify-content:space-between">
+      <button class="btn" onclick="recomputeRois()" title="Remede os ROIs de todas as amostras (áreas em mm² usam o mm/px atual)">↻ Recalcular ROIs</button>
+      <span style="display:flex;gap:10px"><button class="btn" onclick="closeModal('settings-modal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveSettings()">Salvar</button></span>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+const PID = {{ project.id }};
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+/* ── Importação ─────────────────────────────────────────────────────────── */
+let chosenFiles = [], stagingId = null, scanIsUpload = true, tab = 'upload';
+function openImport() { backToStep1(); openModal('import-modal'); }
+function setTab(t) {
+  tab = t;
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+  document.getElementById('tab-upload').hidden = t !== 'upload';
+  const loc = document.getElementById('tab-local'); if (loc) loc.hidden = t !== 'local';
+}
+function fmtSize(b) {
+  if (b > 1e9) return (b / 1e9).toFixed(2) + ' GB';
+  if (b > 1e6) return (b / 1e6).toFixed(1) + ' MB';
+  return Math.max(1, Math.round(b / 1e3)) + ' KB';
+}
+function setChosen(list) {
+  chosenFiles = list.map(f => ({ file: f.file || f, path: f.path || f.webkitRelativePath || f.name }));
+  const total = chosenFiles.reduce((s, f) => s + f.file.size, 0);
+  document.getElementById('chosen').textContent = chosenFiles.length
+    ? `${chosenFiles.length} arquivo(s) · ${fmtSize(total)}` : '';
+}
+document.getElementById('in-files').addEventListener('change', e => setChosen([...e.target.files]));
+document.getElementById('in-dir').addEventListener('change', e => setChosen([...e.target.files]));
+const drop = document.getElementById('drop');
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('dragover'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('dragover'); }));
+// soltar uma pasta: percorre as entradas (webkitGetAsEntry) mantendo o caminho relativo
+drop.addEventListener('drop', async e => {
+  const entries = [...e.dataTransfer.items].map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  const out = [];
+  async function walk(entry, prefix) {
+    if (entry.isFile) {
+      const file = await new Promise((res, rej) => entry.file(res, rej));
+      out.push({ file, path: prefix + file.name });
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      for (;;) {
+        const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+        if (!batch.length) break;
+        for (const child of batch) await walk(child, prefix + entry.name + '/');
+      }
+    }
+  }
+  if (entries.length) { for (const en of entries) await walk(en, ''); setChosen(out); }
+  else setChosen([...e.dataTransfer.files]);
+});
+
+function uploadForm(fd) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/projects/${PID}/import/scan/`);
+    xhr.setRequestHeader('X-CSRFToken', CSRF);
+    const prog = document.getElementById('upload-prog');
+    prog.style.display = 'block';
+    xhr.upload.onprogress = e => {
+      if (!e.lengthComputable) return;
+      const pct = Math.round(e.loaded / e.total * 100);
+      document.getElementById('up-fill').style.width = pct + '%';
+      document.getElementById('up-pct').textContent = pct < 100 ? `Enviando… ${pct}%` : 'Analisando arquivos…';
+    };
+    xhr.onload = () => { prog.style.display = 'none';
+      try { resolve({ ok: xhr.status < 400, data: JSON.parse(xhr.responseText) }); }
+      catch (e) { reject(new Error(`Erro ${xhr.status} no servidor.`)); } };
+    xhr.onerror = () => { prog.style.display = 'none'; reject(new Error('Falha de rede no envio.')); };
+    xhr.send(fd);
+  });
+}
+
+async function scan() {
+  const btn = document.getElementById('btn-scan');
+  const group = document.getElementById('opt-group').checked;
+  btn.disabled = true;
+  try {
+    let res;
+    if (tab === 'upload') {
+      if (!chosenFiles.length) { alert('Escolha arquivos ou uma pasta.'); return; }
+      const fd = new FormData();
+      fd.append('group', group ? '1' : '0');
+      chosenFiles.forEach(f => { fd.append('files', f.file, f.file.name); fd.append('paths', f.path); });
+      res = await uploadForm(fd);
+    } else {
+      const path = document.getElementById('in-path').value.trim();
+      if (!path) { alert('Informe o caminho.'); return; }
+      res = await apiJSON(`/projects/${PID}/import/scan/`, { path, group });
+    }
+    if (!res.ok) { alert(res.data.error || 'Falha na análise.'); return; }
+    showItems(res.data);
+  } catch (e) { alert(e.message); }
+  finally { btn.disabled = false; }
+}
+
+const DEVICE_NAMES = { {% for v, l in devices %}'{{ v }}': '{{ l|escapejs }}',{% endfor %} };
+function showItems(d) {
+  stagingId = d.staging; scanIsUpload = d.upload;
+  const body = document.getElementById('items-body');
+  body.innerHTML = d.items.map(it => `
+    <tr class="${it.error ? 'bad' : ''}">
+      <td><input type="checkbox" class="chk-item" value="${escHtml(it.key)}" ${it.error ? 'disabled' : 'checked'}></td>
+      <td><div class="nm">${escHtml(it.name)}</div><div class="rel">${escHtml(it.relpath)}</div>${it.error ? `<div>${escHtml(it.error)}</div>` : ''}</td>
+      <td>${escHtml(DEVICE_NAMES[it.device] || it.device)}</td>
+      <td>${escHtml(it.info)}</td>
+      <td class="num">${fmtSize(it.size)}</td>
+    </tr>`).join('') || '<tr><td colspan="5" class="muted" style="padding:16px">Nenhum arquivo reconhecido.</td></tr>';
+  const nOk = d.items.filter(i => !i.error).length;
+  let s = `<b>${nOk}</b> amostra(s) reconhecida(s)`;
+  if (d.items.length > nOk) s += ` · <span style="color:var(--red)">${d.items.length - nOk} com erro</span>`;
+  if (d.ignored) s += ` · ${d.ignored} arquivo(s) ignorado(s)` + (d.ignored_examples.length ? ` (ex.: ${d.ignored_examples.slice(0, 3).map(escHtml).join(', ')})` : '');
+  document.getElementById('scan-summary').innerHTML = s;
+  document.getElementById('mode-row').hidden = d.upload;
+  document.getElementById('btn-import').disabled = nOk === 0;
+  document.getElementById('imp-step1').hidden = true;
+  document.getElementById('imp-step2').hidden = false;
+}
+function backToStep1() {
+  document.getElementById('imp-step1').hidden = false;
+  document.getElementById('imp-step2').hidden = true;
+}
+async function runImport() {
+  const keys = [...document.querySelectorAll('.chk-item:checked')].map(c => c.value);
+  if (!keys.length) { alert('Selecione pelo menos uma amostra.'); return; }
+  const mode = (document.querySelector('input[name=mode]:checked') || {}).value || 'copy';
+  closeModal('import-modal');
+  const st = await runJob(`/projects/${PID}/import/run/`, { staging: stagingId, keys, mode }, 'Importando amostras…');
+  if (st && st.result && st.result.errors.length)
+    alert(`${st.result.created.length} importada(s), ${st.result.errors.length} com erro:\n\n` +
+          st.result.errors.map(e => `• ${e.name}: ${e.error}`).join('\n'));
+  location.reload();
+}
+
+/* ── Filtros e seleção ───────────────────────────────────────────────────── */
+const FKEY = `proj-${PID}-filters`;
+function filterCards() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const st = document.getElementById('f-status').value, dev = document.getElementById('f-device').value;
+  const lbl = document.getElementById('f-label').value, note = document.getElementById('f-note').value;
+  try { sessionStorage.setItem(FKEY, JSON.stringify({ q, st, dev, lbl, note })); } catch (e) {}
+  let visible = 0;
+  document.querySelectorAll('.card').forEach(c => {
+    const n = k => parseInt(c.dataset[k]) || 0;
+    const mStatus = st === 'all' ? true : st === 'done' ? c.dataset.status === 'done' && c.dataset.state === 'ready'
+      : st === 'pending' ? c.dataset.status === 'pending' && c.dataset.state === 'ready' : st === 'error' ? c.dataset.state === 'error'
+      : st === 'box' ? n('boxes') > 0 : st === 'ellipse' ? n('ellipses') > 0 : st === 'poly' ? n('polygons') > 0 : n('points') > 0;
+    const show = (c.dataset.name.includes(q) || c.dataset.note.toLowerCase().includes(q)) && mStatus
+      && (!dev || c.dataset.device === dev) && (!lbl || c.dataset.label === lbl) && (!note || c.dataset.note === note);
+    c.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  const nr = document.getElementById('no-results'); if (nr) nr.style.display = visible ? 'none' : 'block';
+}
+window.addEventListener('DOMContentLoaded', () => {
+  if (!document.getElementById('search')) return;
+  try {
+    const f = JSON.parse(sessionStorage.getItem(FKEY) || 'null');
+    if (f) {
+      document.getElementById('search').value = f.q || '';
+      [['f-status', f.st], ['f-device', f.dev], ['f-label', f.lbl], ['f-note', f.note]].forEach(([id, v]) => {
+        const sel = document.getElementById(id); if (v && [...sel.options].some(o => o.value === v)) sel.value = v; });
+      filterCards();
+    }
+  } catch (e) {}
+});
+function toggleSelect(el, e) { e.preventDefault(); e.stopPropagation(); el.closest('.card').classList.toggle('selected'); updateSel(); }
+function selectVisible() { document.querySelectorAll('.card').forEach(c => { if (c.style.display !== 'none' && c.dataset.state === 'ready') c.classList.add('selected'); }); updateSel(); }
+function clearSelection() { document.querySelectorAll('.card.selected').forEach(c => c.classList.remove('selected')); updateSel(); }
+function updateSel() {
+  const n = document.querySelectorAll('.card.selected').length, el = document.getElementById('sel-count');
+  el.textContent = n ? `${n} selecionada${n > 1 ? 's' : ''}` : ''; el.style.display = n ? 'inline' : 'none';
+}
+async function deleteSample(e, id) {
+  e.preventDefault(); e.stopPropagation();
+  const card = e.target.closest('.card');
+  if (!confirm(`Excluir "${card.querySelector('.card-name').textContent}"?\n\nApaga a anotação, as medições e a cópia/conversão do cubo. Um arquivo original vinculado não é tocado.`)) return;
+  const { ok, data } = await apiJSON(`/samples/${id}/delete/`);
+  if (!ok) { alert(data.error); return; }
+  card.remove();
+}
+
+/* ── Rótulo e observação inline ──────────────────────────────────────────── */
+function inlineEdit(el, sid, kind) {
+  const card = el.closest('.card');
+  const cur = kind === 'label' ? (el.classList.contains('has-value') ? el.textContent.trim().replace(/^🏷\s*/, '') : '') : card.dataset.note;
+  const inp = document.createElement('input');
+  inp.type = 'text'; inp.className = 'inline-input'; inp.value = cur;
+  inp.placeholder = kind === 'label' ? 'ex.: saudável, doente, verde…' : 'ex.: lote A, safra 2026…';
+  el.replaceWith(inp); inp.focus(); inp.select();
+  let done = false;
+  async function finish(keep) {
+    if (done) return; done = true;
+    const val = keep ? cur : inp.value.trim();
+    if (!keep) await apiJSON(`/samples/${sid}/${kind === 'label' ? 'label' : 'note'}/`, kind === 'label' ? { label: val } : { note: val });
+    const span = document.createElement('span');
+    span.className = (kind === 'label' ? 'card-label' : 'card-note') + (val ? ' has-value' : '');
+    span.textContent = val ? (kind === 'label' ? '🏷 ' : '📝 ') + val : (kind === 'label' ? '+ rótulo' : '+ observação');
+    span.onclick = function () { inlineEdit(this, sid, kind); };
+    inp.replaceWith(span);
+    if (kind === 'label') card.dataset.label = val.toLowerCase(); else card.dataset.note = val;
+  }
+  inp.addEventListener('blur', () => finish(false));
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); if (e.key === 'Escape') finish(true); });
+}
+function editLabel(el, sid) { inlineEdit(el, sid, 'label'); }
+function editNote(el, sid) { inlineEdit(el, sid, 'note'); }
+
+/* ── Exportação ──────────────────────────────────────────────────────────── */
+function selectedCards() { return [...document.querySelectorAll('.card.selected')]; }
+function openExport() {
+  let sel = selectedCards();
+  const all = !sel.length;
+  if (all) sel = [...document.querySelectorAll('.card')].filter(c => c.dataset.state === 'ready');
+  const n = k => sel.filter(c => (parseInt(c.dataset[k]) || 0) > 0).length;
+  const nSeg = sel.filter(c => (parseInt(c.dataset.ellipses) || 0) + (parseInt(c.dataset.polygons) || 0) > 0).length;
+  const nAnn = sel.filter(c => c.dataset.status === 'done').length;
+  const nRois = sel.reduce((s, c) => s + (parseInt(c.dataset.rois) || 0), 0);
+  document.getElementById('exp-summary').innerHTML = all
+    ? `Nenhuma amostra selecionada — exporta <b>todas</b> as ${sel.length} do projeto.` : `<b>${sel.length}</b> amostra(s) selecionada(s).`;
+  const set = (id, cnt, txt) => { document.getElementById('exp-' + id).disabled = !cnt; document.getElementById('sb-' + id).textContent = txt; };
+  set('seg', nSeg, `${nSeg} com polígonos/elipses`);
+  set('det', n('boxes'), `${n('boxes')} com boxes`);
+  set('coco', nAnn, `${nAnn} anotada(s)`);
+  set('samples', nAnn, `${nAnn} anotada(s)`);
+  set('rois', nRois, `${nRois} ROI(s) medidos`);
+  openModal('export-modal');
+}
+async function doExport(kind) {
+  let sel = selectedCards();
+  if (!sel.length) sel = [...document.querySelectorAll('.card')].filter(c => c.dataset.state === 'ready');
+  const ids = sel.map(c => parseInt(c.dataset.id));
+  closeModal('export-modal');
+  const titles = { seg: 'Gerando dataset de segmentação…', det: 'Gerando dataset de detecção…', coco: 'Gerando COCO…',
+                   samples: 'Exportando amostras…', rois: 'Gerando CSV dos espectros…' };
+  await runJob(`/projects/${PID}/export/${kind}/`, { ids, val_split: 0.2, include_cube: document.getElementById('opt-cube').checked }, titles[kind]);
+}
+
+/* ── Configurações ───────────────────────────────────────────────────────── */
+async function saveSettings() {
+  const { ok, data } = await apiJSON(`/projects/${PID}/update/`, {
+    name: document.getElementById('s-name').value, description: document.getElementById('s-desc').value,
+    mm_per_pixel: document.getElementById('s-mmpp').value });
+  if (!ok) { alert(data.error); return; }
+  location.reload();
+}
+async function recomputeRois() {
+  closeModal('settings-modal');
+  const st = await runJob(`/projects/${PID}/rois/recompute/`, {}, 'Recalculando ROIs…');
+  if (st) alert(`${st.result.rois} ROI(s) medidos.`);
+}
+</script>
+{% endblock %}

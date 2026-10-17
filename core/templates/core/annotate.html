@@ -1,0 +1,1694 @@
+{% extends "core/base.html" %}
+{% load static l10n %}
+{% block title %}Anotar — {{ sample.name }}{% endblock %}
+{% block body_class %}annotate-page mode-box{% endblock %}
+{% block style %}
+    body.annotate-page { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+    header {
+      background: var(--panel); padding: 10px 18px 10px 56px;
+      display: flex; align-items: center; gap: 14px;
+      border-bottom: 1px solid var(--line); flex-shrink: 0;
+    }
+    .back-btn {
+      background: var(--panel); border: 1px solid var(--line); color: var(--muted);
+      padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: .85rem; text-decoration: none;
+    }
+    .back-btn:hover { border-color: var(--blue); color: var(--blue); }
+    header h2 { font-size: .95rem; color: var(--ink); font-weight: 700; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .nav-btn { background: var(--blue-soft); border: none; color: var(--blue); padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: .85rem; font-weight: 600; }
+    .nav-btn:hover { background: #dbe6fb; }
+    .nav-btn:disabled { opacity: .35; cursor: default; }
+    .counter { font-size: .8rem; color: var(--muted); white-space: nowrap; }
+
+    .toolbar {
+      background: var(--panel2); border-bottom: 1px solid var(--line);
+      padding: 8px 18px; display: flex; gap: 12px; align-items: flex-end; flex-shrink: 0; flex-wrap: wrap;
+    }
+    .btn { padding: 5px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: .83rem; font-weight: 600; }
+    .btn-save { background: var(--green); color: #fff; }
+    .btn-save:hover { background: #268052; }
+    .btn-undo { background: #eab308; color: #fff; }
+    .btn-undo:hover { background: #ca9a06; }
+    .btn-undo:disabled, .btn-redo:disabled { opacity: .35; cursor: default; }
+    .btn-redo { background: var(--blue); color: #fff; }
+    .btn-redo:hover { background: #2557c4; }
+    .btn-clear { background: #dc2626; color: #fff; }
+    .btn-clear:hover { background: #b91c1c; }
+    .btn-otsu { background: var(--blue-soft); color: var(--blue); }
+    .btn-otsu:hover { background: #dbe6fb; }
+    .btn-yolo { background: #f1e6fd; color: #7c3aed; }
+    .btn-yolo:hover { background: #e6d5fc; }
+    .btn-otsu:disabled, .btn-yolo:disabled { opacity: .4; cursor: default; }
+
+    /* cada grupo: rótulo em cima + fileira de botões com altura fixa; a toolbar
+       alinha tudo pela base (align-items:flex-end), então as fileiras ficam na
+       mesma linha e os rótulos numa linha acima, mesmo com alturas diferentes */
+    .tool-group { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .tool-row { display: flex; align-items: stretch; height: 30px; gap: 6px; }
+    .tool-row > .btn { display: inline-flex; align-items: center; padding: 5px 11px; }
+    .toolbar-status { height: 30px; display: flex; align-items: center; }
+    .tool-group-label { font-size: .6rem; color: var(--muted2); text-transform: uppercase; letter-spacing: .07em; user-select: none; }
+    .mode-group .btn { border-radius: 0; }
+
+    .ia-modal-box { min-width: 360px; max-width: 440px; gap: 12px; }
+    .ia-modal-title { font-size: 1rem; font-weight: 700; color: #7c3aed; margin-bottom: 4px; }
+    .ia-option {
+      display: flex; align-items: center; gap: 14px; padding: 11px 14px; border-radius: 8px;
+      border: 1px solid var(--line); cursor: pointer; transition: background .15s, border-color .15s; background: var(--panel2);
+    }
+    .ia-option:hover:not(.ia-disabled) { background: var(--blue-soft); border-color: var(--blue); }
+    .ia-option.ia-disabled { opacity: .35; cursor: not-allowed; pointer-events: none; }
+    .ia-badge { width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+    .ia-badge-det { background: #fde9d8; color: #c2540a; }
+    .ia-badge-seg { background: #f1e6fd; color: #7c3aed; }
+    .ia-badge-cls { background: #e3f6e9; color: #1c7a3d; }
+    .ia-info { flex: 1; }
+    .ia-name { font-size: .86rem; font-weight: 700; color: var(--ink); margin-bottom: 3px; }
+    .ia-desc { font-size: .76rem; color: var(--muted); line-height: 1.4; }
+
+    [data-tip] { position: relative; }
+    [data-tip]::after {
+      content: attr(data-tip); position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+      background: var(--ink); color: #fff; padding: 5px 10px; border-radius: 6px;
+      font-size: .72rem; font-weight: 400; white-space: nowrap; pointer-events: none; z-index: 200;
+      opacity: 0; transition: opacity .15s .25s;
+    }
+    [data-tip]:hover::after { opacity: 1; }
+
+    .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(16,24,40,.45); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-backdrop.open { display: flex; }
+    .modal-box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 28px 32px; min-width: 320px; max-width: 420px;
+                 box-shadow: 0 12px 40px rgba(16,24,40,0.18); display: flex; flex-direction: column; gap: 20px; }
+    .modal-title { font-size: 1rem; font-weight: 700; color: #dc2626; }
+    .modal-msg { font-size: .88rem; color: var(--muted); line-height: 1.5; }
+    .modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
+    .modal-cancel { background: var(--panel); color: var(--muted); border: 1px solid var(--line); padding: 7px 18px; border-radius: 7px; cursor: pointer; font-size: .85rem; }
+    .modal-cancel:hover { border-color: var(--muted2); color: var(--ink); }
+    .modal-confirm { background: #dc2626; color: #fff; border: none; padding: 7px 18px; border-radius: 7px; cursor: pointer; font-size: .85rem; font-weight: 600; }
+    .modal-confirm:hover { background: #b91c1c; }
+
+    .mode-group { display: flex; gap: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; height: 30px; }
+    .mode-btn { padding: 5px 14px; border: none; cursor: pointer; font-size: .83rem; font-weight: 600; background: var(--panel); color: var(--muted); transition: background .15s, color .15s; }
+    .mode-btn:hover { background: var(--panel2); color: var(--ink); }
+    .mode-btn.active-box { background: #e3f6e9; color: #1c7a3d; }
+    .mode-btn.active-ellipse { background: #dcf3fa; color: #0e7c96; }
+    .mode-btn.active-poly { background: #f1e6fd; color: #7c3aed; }
+    .mode-btn.active-point { background: #fde9d8; color: #c2540a; }
+
+    .box-count { margin-left: auto; font-size: .82rem; color: var(--muted); }
+    .hint { font-size: .72rem; color: var(--muted2); line-height: 1.25; }
+    /* dica da ferramenta atual: etiqueta fixa no canto da área da imagem (fora do
+       scroll do canvas), em vez de ocupar espaço na toolbar */
+    .canvas-area { flex: 1; display: flex; position: relative; min-width: 0; }
+    .canvas-hint { position: absolute; left: 12px; bottom: 12px; max-width: calc(100% - 24px); z-index: 2;
+                   background: rgba(15,17,23,.82); color: #d1d5db; border: 1px solid rgba(255,255,255,.12);
+                   padding: 5px 10px; border-radius: 7px; pointer-events: none; }
+    .saved-msg { font-size: .8rem; color: var(--green); opacity: 0; transition: opacity .4s; font-weight: 600; }
+
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    /* Painel das 8 bandas (calibradas -- calibrated/ -- ou cruas se a banda nao
+       tem calibracao), do lado direito da imagem RGB -- so consulta
+       visual, o rotulo continua sendo feito
+       por contorno (ROI) na lista da esquerda, nao aqui. Uma banda por linha,
+       empilhadas com scroll VERTICAL (nao horizontal). */
+    .bands-panel {
+      width: 360px; background: var(--panel); border-left: 1px solid var(--line);
+      overflow-y: auto; flex-shrink: 0; padding: 12px;
+    }
+    .bands-panel h3 { font-size: .7rem; color: var(--muted2); text-transform: uppercase; letter-spacing: .06em;
+                       margin-bottom: 10px; }
+    .bands-grid { display: flex; flex-direction: column; gap: 10px; }
+    .band-thumb { display: flex; flex-direction: column; align-items: center; gap: 3px; text-decoration: none; }
+    .band-thumb img {
+      width: 100%; aspect-ratio: 8 / 5; object-fit: cover; border-radius: 6px;
+      border: 2px solid var(--line); background: #0b0d13; transition: border-color .15s, transform .15s;
+    }
+    .band-thumb:hover img { border-color: var(--c); transform: scale(1.03); }
+    .band-thumb span { font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+    /* Curva espectral da forma selecionada: mesmo tamanho/borda de uma miniatura de banda */
+    .spectrum { margin-bottom: 16px; }
+    .spectrum-box { position: relative; width: 100%; aspect-ratio: 8 / 5; border-radius: 6px;
+                    border: 2px solid var(--line); background: var(--panel2); overflow: hidden; }
+    .spectrum-box svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    .spectrum-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+                      text-align: center; padding: 0 22px; font-size: .78rem; color: var(--muted); line-height: 1.4; }
+    .spectrum-empty[hidden] { display: none; }
+    .spectrum-caption { display: block; text-align: center; margin-top: 3px; font-size: .72rem; color: var(--muted); }
+    .spectrum-grid { stroke: var(--line); stroke-width: 1; }
+    .spectrum-axis { fill: var(--muted); font-size: 10px; font-family: inherit; font-variant-numeric: tabular-nums; }
+    .spectrum-line { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+    .spectrum-dot { stroke: var(--panel2); stroke-width: 2; }
+    .spectrum-hit { fill: transparent; }
+    .spectrum-tip { position: absolute; pointer-events: none; transform: translate(-50%, calc(-100% - 10px));
+                    background: var(--ink); color: var(--panel); font-size: .72rem; padding: 3px 8px;
+                    border-radius: 5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .spectrum-tip[hidden] { display: none; }
+    .spectrum-box { aspect-ratio: 4 / 3; background: var(--viz-surface); }
+    /* aviso flutuante (salvo / resultado do SAM...) -- fora do fluxo, não quebra a toolbar */
+    .saved-msg { position: fixed; top: 118px; left: 50%; transform: translateX(-50%); z-index: 300; pointer-events: none;
+                 background: rgba(15,17,23,.88); padding: 7px 14px; border-radius: 8px; height: auto !important;
+                 box-shadow: 0 4px 16px rgba(0,0,0,.25); max-width: 70vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* tema escuro: as cores claras fixas do editor (herdadas do SpectralCrops) ganham versão escura */
+    :root[data-theme="dark"] .acc-header.h-box { background: #12261a; }
+    :root[data-theme="dark"] .acc-header.h-poly { background: #221a33; }
+    :root[data-theme="dark"] .acc-header.h-ellipse { background: #0f2a30; }
+    :root[data-theme="dark"] .acc-header.h-point { background: #2e2012; }
+    :root[data-theme="dark"] .acc-name.h-box { color: #4ade80; }
+    :root[data-theme="dark"] .acc-name.h-poly { color: #c4a5fb; }
+    :root[data-theme="dark"] .acc-name.h-ellipse { color: #67e8f9; }
+    :root[data-theme="dark"] .acc-name.h-point { color: #fdba74; }
+    :root[data-theme="dark"] .poly-row { border-color: #3b2d55; }
+    :root[data-theme="dark"] .ellipse-row { border-color: #164651; }
+    :root[data-theme="dark"] .point-row { border-color: #4a3216; }
+    :root[data-theme="dark"] .poly-row:hover, :root[data-theme="dark"] .poly-row.active-poly { background: #2a2040; }
+    :root[data-theme="dark"] .ellipse-row:hover, :root[data-theme="dark"] .ellipse-row.active-ellipse { background: #12313a; }
+    :root[data-theme="dark"] .point-row:hover, :root[data-theme="dark"] .point-row.active-point { background: #3a2716; }
+    :root[data-theme="dark"] .mode-btn.active-box { background: #12261a; color: #4ade80; }
+    :root[data-theme="dark"] .mode-btn.active-ellipse { background: #0f2a30; color: #67e8f9; }
+    :root[data-theme="dark"] .mode-btn.active-poly { background: #221a33; color: #c4a5fb; }
+    :root[data-theme="dark"] .mode-btn.active-point { background: #2e2012; color: #fdba74; }
+    :root[data-theme="dark"] .btn-yolo { background: #221a33; color: #c4a5fb; }
+    :root[data-theme="dark"] .box-del:hover { background: #3a1717; }
+    @media (prefers-color-scheme: dark) {
+      :root:where(:not([data-theme="light"])) .acc-header.h-box { background: #12261a; }
+      :root:where(:not([data-theme="light"])) .acc-header.h-poly { background: #221a33; }
+      :root:where(:not([data-theme="light"])) .acc-header.h-ellipse { background: #0f2a30; }
+      :root:where(:not([data-theme="light"])) .acc-header.h-point { background: #2e2012; }
+      :root:where(:not([data-theme="light"])) .poly-row:hover, :root:where(:not([data-theme="light"])) .poly-row.active-poly { background: #2a2040; }
+      :root:where(:not([data-theme="light"])) .ellipse-row:hover, :root:where(:not([data-theme="light"])) .ellipse-row.active-ellipse { background: #12313a; }
+      :root:where(:not([data-theme="light"])) .point-row:hover, :root:where(:not([data-theme="light"])) .point-row.active-point { background: #3a2716; }
+      :root:where(:not([data-theme="light"])) .mode-btn.active-box { background: #12261a; color: #4ade80; }
+      :root:where(:not([data-theme="light"])) .mode-btn.active-ellipse { background: #0f2a30; color: #67e8f9; }
+      :root:where(:not([data-theme="light"])) .mode-btn.active-poly { background: #221a33; color: #c4a5fb; }
+      :root:where(:not([data-theme="light"])) .mode-btn.active-point { background: #2e2012; color: #fdba74; }
+    }
+    .h3-note { font-weight: 400; color: var(--muted2); margin-left: 4px; }
+    .dev-tag { font-size: .7rem; font-weight: 600; color: var(--blue); background: var(--blue-soft); padding: 2px 8px; border-radius: 999px; margin-left: 8px; vertical-align: middle; }
+    .band-viewer { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+    .band-viewer img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #0b0d13; border-radius: 6px; border: 2px solid var(--line); display: block; }
+    .band-viewer input[type=range] { width: 100%; accent-color: var(--blue); }
+    .band-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: .76rem; color: var(--muted); }
+    .band-row select { font-size: .76rem; padding: 3px 6px; }
+    .band-label { font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .rgb-picker { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; }
+    .rgb-picker label { display: flex; align-items: center; gap: 8px; }
+    .rgb-picker select { flex: 1; font-size: .76rem; padding: 3px 6px; min-width: 0; }
+    .ch { width: 22px; height: 22px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; font-size: .72rem; font-weight: 700; color: #fff; flex-shrink: 0; }
+    .ch-r { background: #dc2626; } .ch-g { background: #16a34a; } .ch-b { background: #2563eb; }
+    .rgb-actions { display: flex; gap: 6px; justify-content: flex-end; }
+    .btn-mini { font: inherit; font-size: .74rem; padding: 4px 9px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+    .btn-mini:hover { border-color: var(--blue); color: var(--blue); }
+    .sample-info { display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; font-size: .76rem; }
+    .sample-info dt { color: var(--muted2); }
+    .sample-info dd { color: var(--ink); min-width: 0; }
+    .sample-info dd input { width: 100%; font-size: .76rem; padding: 3px 6px; }
+    .sample-info .src { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+
+    .sidebar { width: 340px; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
+    .table-header { display: grid; grid-template-columns: 58px 90px 1fr; border-bottom: 2px solid var(--line); flex-shrink: 0; }
+    .table-header > div { padding: 7px 8px; font-size: .7rem; color: var(--muted2); font-weight: 700; text-transform: uppercase; letter-spacing: .02em; border-right: 1px solid var(--line); overflow: hidden; white-space: nowrap; }
+    .table-header > div:last-child { border-right: none; }
+    .box-list { flex: 1; overflow-y: auto; }
+
+    .acc-header { display: flex; align-items: center; gap: 7px; padding: 7px 10px; cursor: pointer; user-select: none; border-bottom: 1px solid var(--line); transition: background .15s; position: sticky; top: 0; z-index: 1; }
+    .acc-header:hover { filter: brightness(0.97); }
+    .acc-header.h-box { background: #eafaf0; }
+    .acc-header.h-poly { background: #f6effd; }
+    .acc-header.h-ellipse { background: #e6fbfd; }
+    .acc-header.h-point { background: #fdf1e4; }
+    .acc-arrow { font-size: .7rem; color: var(--muted2); width: 10px; transition: transform .2s; }
+    .acc-arrow.open { transform: rotate(90deg); }
+    .acc-icon { font-size: .9rem; }
+    .acc-name { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; flex: 1; }
+    .acc-name.h-box { color: #1c7a3d; }
+    .acc-name.h-poly { color: #7c3aed; }
+    .acc-name.h-ellipse { color: #0e7c96; }
+    .acc-name.h-point { color: #c2540a; }
+    .acc-badge { font-size: .68rem; padding: 1px 7px; border-radius: 10px; background: var(--panel); color: var(--muted); border: 1px solid var(--line); }
+    .acc-eye { font-size: .8rem; color: var(--muted2); padding: 0 2px; cursor: pointer; }
+    .acc-eye:hover { color: var(--ink); }
+    .acc-body { overflow: hidden; transition: max-height .22s ease, opacity .2s; max-height: 4000px; opacity: 1; }
+    .acc-body.collapsed { max-height: 0; opacity: 0; }
+    .acc-body-inner { padding: 4px 5px; }
+
+    .box-row { display: grid; grid-template-columns: 58px 90px 1fr 26px; align-items: stretch; min-height: 46px;
+               background: var(--panel); border: 1px solid var(--line); border-radius: 6px; margin-bottom: 3px;
+               transition: border-color .15s, background .15s; cursor: grab; user-select: none; }
+    .box-row:hover { border-color: var(--muted2); background: var(--panel2); }
+    .box-row.active { border-color: var(--blue); background: var(--blue-soft); }
+    .box-row.dragging { opacity: .35; }
+    .box-row.drag-over { border-top: 2px solid var(--blue); }
+    .poly-row { border-color: #e4d4fb; }
+    .poly-row:hover { border-color: #c084fc; background: #f9f4fe; }
+    .poly-row.active-poly { border-color: #a855f7; background: #f6effd; }
+    .ellipse-row { border-color: #c9edf7; }
+    .ellipse-row:hover { border-color: #22d3ee; background: #f0fbfd; }
+    .ellipse-row.active-ellipse { border-color: #0e7c96; background: #dcf3fa; }
+    .point-row { border-color: #fbdcb8; }
+    .point-row:hover { border-color: #fb923c; background: #fef7f0; }
+    .point-row.active-point { border-color: #c2540a; background: #fde9d8; }
+
+    .cell-num { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-right: 1px solid var(--line); padding: 6px 4px; }
+    .cell-num .num-val { font-weight: 700; color: var(--blue); font-size: .95rem; line-height: 1; }
+    .cell-num .num-val.poly { color: #7c3aed; }
+    .cell-num .num-val.ellipse { color: #0e7c96; }
+    .cell-num .num-val.point { color: #c2540a; }
+    .cell-num .drag-hint { font-size: .65rem; color: var(--muted2); line-height: 1; letter-spacing: 1px; }
+    .box-row:hover .drag-hint { color: var(--muted); }
+    .pos-input { width: 26px; background: transparent; border: none; border-bottom: 1px solid var(--line); color: inherit; font-weight: 700;
+                 font-size: .78rem; text-align: center; padding: 0; cursor: text; -moz-appearance: textfield; font-family: inherit; }
+    .pos-input::-webkit-inner-spin-button, .pos-input::-webkit-outer-spin-button { display: none; }
+    .pos-input:focus { outline: none; border-bottom-color: var(--blue); background: var(--blue-soft); }
+    .pos-input:hover { border-bottom-color: var(--muted2); }
+
+    .cell-coords { display: flex; flex-direction: column; justify-content: center; padding: 6px 8px; border-right: 1px solid var(--line); line-height: 1.5; }
+    .cell-coords .coord-xy { font-size: .75rem; color: var(--ink); }
+    .cell-coords .coord-size { font-size: .72rem; color: var(--muted2); }
+
+    .cell-label { display: flex; align-items: center; padding: 6px 6px; cursor: text; }
+    .label-input { width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; color: var(--ink); font-size: .85rem;
+                   font-family: inherit; padding: 5px 8px; outline: none; transition: border-color .15s, background .15s; cursor: text; }
+    .label-input:hover { border-color: var(--muted2); }
+    .label-input:focus { border-color: var(--blue); background: var(--blue-soft); }
+
+    .cell-del { display: flex; align-items: center; justify-content: center; padding: 4px 2px; }
+    .box-del { background: none; border: none; color: var(--muted2); cursor: pointer; font-size: 1.1rem; line-height: 1; border-radius: 4px;
+               width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+    .box-del:hover { color: #dc2626; background: #fdeaea; }
+
+    /* fundo escuro pra visualizar a foto (mesmo padrao das outras telas: stream/refl/geo) */
+    .canvas-wrap { flex: 1; overflow: auto; background: #0b0d13; display: flex; align-items: flex-start; justify-content: flex-start; padding: 16px; position: relative; }
+    /* max-width < 100% deixa a imagem de anotacao um pouco menor que o
+       espaco disponivel (nao ocupa mais a tela toda em tamanho nativo) --
+       o mapeamento de clique/desenho pro pixel real da imagem (ver
+       getBoundingClientRect() no JS) ja leva essa escala em conta sozinho,
+       entao desenhar ROI continua preciso mesmo com o canvas reduzido. */
+    /* flex: none -- como item flex, o canvas era encolhido de volta ao tamanho
+       natural da imagem e o zoom acima de 100% não tinha efeito nenhum */
+    #canvas { display: block; flex: none; max-width: 92%; height: auto; image-rendering: pixelated; }
+    body.mode-box #canvas { cursor: crosshair; }
+    body.mode-ellipse #canvas { cursor: crosshair; }
+    body.mode-polygon #canvas { cursor: crosshair; }
+    body.mode-point #canvas { cursor: copy; }
+    .zoom-ctl { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; height: 30px; }
+    .zoom-ctl .mode-btn { min-width: 36px; }
+    .mode-btn.active-zoom { background: var(--blue-soft); color: var(--blue); }
+    /* !important pra ganhar do canvas.style.cursor que o modo polígono/elipse seta inline */
+    .canvas-wrap.zoom-armed #canvas { cursor: zoom-in !important; }
+{% endblock %}
+{% block content %}
+<header>
+  <a class="back-btn" href="{% url 'project' project.id %}">← Voltar</a>
+  <h2>{{ sample.name }} <span class="dev-tag">{{ sample.get_device_display }}</span></h2>
+  <span class="counter">{{ current }} / {{ total }}</span>
+  {% if prev_id %}<button class="nav-btn" onclick="navigate({{ prev_id }})">‹ Anterior</button>{% else %}<button class="nav-btn" disabled>‹ Anterior</button>{% endif %}
+  {% if next_id %}<button class="nav-btn" onclick="navigate({{ next_id }})">Próxima ›</button>{% else %}<button class="nav-btn" disabled>Próxima ›</button>{% endif %}
+</header>
+
+<div class="toolbar">
+  <div class="tool-group">
+    <span class="tool-group-label">Edição</span>
+    <div class="tool-row">
+      <button class="btn btn-save" onclick="saveAnnotations()" data-tip="Salvar anotações e calcular os ROIs  (Ctrl+S)">💾 Salvar</button>
+      <button class="btn btn-undo" id="btn-undo" onclick="undo()" disabled data-tip="Desfazer última ação  (Ctrl+Z)">↩ Desfazer</button>
+      <button class="btn btn-redo" id="btn-redo" onclick="redo()" disabled data-tip="Refazer ação desfeita  (Ctrl+Y)">↪ Refazer</button>
+      <button class="btn btn-clear" onclick="clearAll()" data-tip="Remover todas as anotações">🗑 Limpar</button>
+    </div>
+  </div>
+
+  <div class="tool-group" style="margin-left:auto">
+    <span class="tool-group-label">Manual</span>
+    <div class="mode-group">
+      <button id="mode-box" class="mode-btn active-box" onclick="setMode('box')" data-tip="Modo box  (B)">□ Box</button>
+      <button id="mode-ellipse" class="mode-btn" onclick="setMode('ellipse')" data-tip="Modo elipse  (E)">⬭ Elipse</button>
+      <button id="mode-poly" class="mode-btn" onclick="setMode('polygon')" data-tip="Modo polígono  (P)">⬡ Polígono</button>
+      <button id="mode-point" class="mode-btn" onclick="setMode('point')" data-tip="Modo ponto  (C)">· Ponto</button>
+    </div>
+  </div>
+
+  <span class="saved-msg toolbar-status" id="saved-msg">✓ Salvo!</span>
+  <div class="tool-group">
+    <span class="tool-group-label">Zoom</span>
+    <div class="zoom-ctl">
+    <button class="mode-btn" onclick="zoomOut()" data-tip="Diminuir zoom  (Ctrl + roda)">−</button>
+    <button class="mode-btn" id="zoom-label" onclick="zoomFit()" data-tip="Ajustar à tela">Ajustar</button>
+    <button class="mode-btn" onclick="zoomIn()" data-tip="Aumentar zoom  (Ctrl + roda)">+</button>
+    <button class="mode-btn" id="zoom-rect-btn" onclick="toggleZoomRect()" data-tip="Zoom na região: arraste um retângulo  (Z)">🔍</button>
+    </div>
+  </div>
+
+  <div class="tool-group">
+    <span class="tool-group-label">Automático</span>
+    <div class="mode-group">
+      <button id="btn-auto-otsu" class="btn btn-otsu" onclick="autoSegment('otsu')" data-tip="Segmentação automática por limiar de Otsu">⚗ Otsu</button>
+      <button id="btn-auto-sam" class="btn btn-otsu" onclick="autoSegmentSam()" data-tip="SAM: acha as amostras com a mesma assinatura espectral de um polígono/elipse de referência">🎯 SAM</button>
+      <button id="btn-auto-boxpoly" class="btn btn-otsu" onclick="boxesToPolygons()" data-tip="Gera polígonos a partir das boxes existentes (Otsu por box)">▢→⬡</button>
+      <button class="btn btn-yolo" onclick="openIAModal()" data-tip="Abrir painel de modelos de IA">🤖 IA</button>
+    </div>
+  </div>
+
+  <span class="box-count toolbar-status" id="box-count">0 boxes</span>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="table-header"><div>Nº</div><div>Posição</div><div>Categoria</div></div>
+    <div class="box-list" id="box-list"></div>
+  </div>
+  <div class="canvas-area">
+    <div class="canvas-wrap"><canvas id="canvas"></canvas></div>
+    <span class="hint canvas-hint" id="tool-hint">Arraste para criar box | Dir para remover</span>
+  </div>
+  <div class="bands-panel">
+    <h3>Curva espectral</h3>
+    <div class="spectrum">
+      <div class="spectrum-box" id="spectrum-box">
+        <div class="spectrum-empty" id="spectrum-empty">Selecione uma anotação pra ver a reflectância média dela em cada banda.</div>
+      </div>
+      <span class="spectrum-caption" id="spectrum-caption"></span>
+    </div>
+
+    <h3>Bandas <span class="h3-note">{{ sample.n_bands }}</span></h3>
+    <div class="band-viewer">
+      <a id="band-link" href="#" target="_blank" title="Abrir a banda em tamanho real"><img id="band-img" alt="banda selecionada"></a>
+      <input type="range" id="band-slider" min="0" max="{{ sample.n_bands|add:'-1' }}" value="0" aria-label="Banda">
+      <div class="band-row">
+        <span id="band-label" class="band-label"></span>
+        <select id="band-cmap" title="Cores da banda">
+          <option value="spectral">Spectral</option><option value="gray">Cinza</option>
+        </select>
+      </div>
+      <label class="band-row" title="Imagem sobre a qual você desenha">
+        <span>Fundo do editor</span>
+        <select id="bg-select"><option value="rgb">Composição colorida</option><option value="band">Banda selecionada</option></select>
+      </label>
+    </div>
+
+    <h3>Composição colorida</h3>
+    <div class="rgb-picker">
+      <label><span class="ch ch-r">R</span><select id="rgb-r"></select></label>
+      <label><span class="ch ch-g">G</span><select id="rgb-g"></select></label>
+      <label><span class="ch ch-b">B</span><select id="rgb-b"></select></label>
+      <div class="rgb-actions">
+        <button class="btn-mini" onclick="previewComposite()">Ver</button>
+        <button class="btn-mini" onclick="saveComposite()" title="Usa estas bandas na miniatura, no fundo do editor e nos modelos YOLO">Salvar como padrão</button>
+      </div>
+    </div>
+
+    <h3>Amostra</h3>
+    <dl class="sample-info">
+      <dt>Equipamento</dt><dd>{{ sample.get_device_display }}</dd>
+      <dt>Tamanho</dt><dd>{{ sample.width }} × {{ sample.height }} px</dd>
+      {% if sample.wavelengths %}<dt>Faixa</dt><dd>{{ sample.wavelengths|first|floatformat:"-1" }}–{{ sample.wavelengths|last|floatformat:"-1" }} nm</dd>{% endif %}
+      <dt>Valores</dt><dd>{{ sample.get_unit_display }}</dd>
+      <dt>mm/pixel</dt><dd><input type="number" id="mmpp" step="any" min="0" value="{{ sample.mm_per_pixel|default_if_none:''|unlocalize }}"
+        placeholder="{% if project.mm_per_pixel %}{{ project.mm_per_pixel }} (projeto){% else %}não informado{% endif %}" onchange="saveMmpp(this.value)"></dd>
+      <dt>Origem</dt><dd class="src" title="{{ sample.source_path }}">{% if sample.linked %}🔗 {% endif %}{{ sample.source_path }}</dd>
+    </dl>
+  </div>
+</div>
+
+{{ bands|json_script:"data-bands" }}
+{{ ann.boxes|json_script:"data-boxes" }}
+{{ ann.labels|json_script:"data-labels" }}
+{{ ann.ellipses|json_script:"data-ellipses" }}
+{{ ann.ellipse_labels|json_script:"data-ellipse-labels" }}
+{{ ann.polygons|json_script:"data-polygons" }}
+{{ ann.poly_labels|json_script:"data-poly-labels" }}
+{{ ann.points|json_script:"data-points" }}
+{{ ann.point_labels|json_script:"data-point-labels" }}
+{{ models|json_script:"data-models" }}
+{% endblock %}
+{% block script %}
+<script src="{% static 'core/charts.js' %}"></script>
+<script>
+  const SID = {{ sample.id }};
+  const REF_IMAGE_URL = '{% url "sample_preview" sample.id %}';
+  const MODELS = JSON.parse(document.getElementById('data-models').textContent);
+  const BANDS = JSON.parse(document.getElementById('data-bands').textContent);
+  const ELLIPSE_PTS = 32;
+  let boxes          = JSON.parse(document.getElementById('data-boxes').textContent);
+  let labels         = JSON.parse(document.getElementById('data-labels').textContent);
+  // Polígono (lasso/auto-segmentação) e elipse são coisas DIFERENTES, com
+  // campos próprios -- nunca misturados no mesmo array (ver models.Annotation).
+  let ellipses       = JSON.parse(document.getElementById('data-ellipses').textContent);
+  let ellipse_labels = JSON.parse(document.getElementById('data-ellipse-labels').textContent);
+  let polygons       = JSON.parse(document.getElementById('data-polygons').textContent);
+  let poly_labels    = JSON.parse(document.getElementById('data-poly-labels').textContent);
+  let points         = JSON.parse(document.getElementById('data-points').textContent);
+  let point_labels   = JSON.parse(document.getElementById('data-point-labels').textContent);
+
+  const BASE = '/samples/' + SID;
+  const URLS = {
+    save:      BASE + '/save/',
+    otsu:      BASE + '/auto/otsu/',
+    boxpoly:   BASE + '/auto/boxes_to_polygons/',
+    sam:       BASE + '/auto/sam/',
+    spectrum:  BASE + '/spectrum/',
+    det:       BASE + '/auto/det/',
+    yolo:      BASE + '/auto/yolo/',
+    classify:  BASE + '/auto/classify/',
+    computeRois: BASE + '/rois/compute/',
+    update:    BASE + '/update/',
+  };
+  // todas as rotas de auto-anotacao sao POST aqui (apiJSON vem do base.html)
+  const apiGET = url => apiJSON(url, {});
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  let mode = 'box';
+  let drawing = false;
+  let startX = 0, startY = 0, curX = 0, curY = 0;
+
+  let selectedIdx        = -1, dragSrcIdx        = null;
+  let selectedEllipseIdx = -1, dragSrcEllipseIdx = null;
+  let selectedPolyIdx    = -1, dragSrcPolyIdx    = null;
+  let selectedPtIdx      = -1;
+
+  let movingPolyIdx  = -1, moveStartX = 0, moveStartY = 0;
+  let editingVertIdx = -1;
+  let hoverVertIdx   = -1, hoverEdgeIdx = -1;
+  let currentPoly    = [];
+  // Lasso do polígono: clique começa, o contorno segue o mouse (sem segurar)
+  // e o próximo clique fecha. Segurar e arrastar também funciona (fecha ao
+  // soltar). polyPress = o mousedown que começou o desenho, até o mouseup dele.
+  let polyPress = null, polyCursor = null, lastPolyFinish = 0;
+
+  // Polígono e elipse têm o mesmo jeito de editar (lista de pontos
+  // arrastável), só moram em arrays/seleção separados -- estas funções
+  // resolvem "qual array/label/seleção vale agora" a partir do `mode`
+  // atual, sempre lendo o valor NA HORA (não guardam referência antiga --
+  // _restore()/undo troca o array inteiro, uma referência capturada cedo
+  // demais ficaria apontando pro array errado depois de um undo).
+  function curArr()  { return mode === 'ellipse' ? ellipses : polygons; }
+  function curLbl()  { return mode === 'ellipse' ? ellipse_labels : poly_labels; }
+  function curSel()  { return mode === 'ellipse' ? selectedEllipseIdx : selectedPolyIdx; }
+  function setCurSel(v) { if (mode === 'ellipse') selectedEllipseIdx = v; else selectedPolyIdx = v; }
+
+  // ── Undo / Redo history ───────────────────────────────────────────────────
+  const _hist = [], _fut = [];
+  const MAX_HIST = 60;
+
+  function _clone() {
+    return {
+      boxes:          boxes.map(b=>[...b]),
+      labels:         [...labels],
+      ellipses:       ellipses.map(p=>p.map(v=>[...v])),
+      ellipse_labels: [...ellipse_labels],
+      polygons:       polygons.map(p=>p.map(v=>[...v])),
+      poly_labels:    [...poly_labels],
+      points:         points.map(p=>[...p]),
+      point_labels:   [...point_labels],
+    };
+  }
+  function snapshot() {
+    _hist.push(_clone());
+    if (_hist.length > MAX_HIST) _hist.shift();
+    _fut.length = 0;
+    _updateUndoButtons();
+  }
+  function _restore(s) {
+    boxes          = s.boxes.map(b=>[...b]);
+    labels         = [...s.labels];
+    ellipses       = s.ellipses.map(p=>p.map(v=>[...v]));
+    ellipse_labels = [...s.ellipse_labels];
+    polygons       = s.polygons.map(p=>p.map(v=>[...v]));
+    poly_labels    = [...s.poly_labels];
+    points         = s.points.map(p=>[...p]);
+    point_labels   = [...s.point_labels];
+    selectedIdx=-1; selectedEllipseIdx=-1; selectedPolyIdx=-1; selectedPtIdx=-1;
+    editingVertIdx=-1; hoverVertIdx=-1; hoverEdgeIdx=-1;
+    redraw();
+  }
+  function undo() {
+    if (!_hist.length) return;
+    _fut.push(_clone());
+    _restore(_hist.pop());
+    _updateUndoButtons();
+  }
+  function redo() {
+    if (!_fut.length) return;
+    _hist.push(_clone());
+    _restore(_fut.pop());
+    _updateUndoButtons();
+  }
+  function _updateUndoButtons() {
+    const u = document.getElementById('btn-undo');
+    const r = document.getElementById('btn-redo');
+    if (u) u.disabled = _hist.length === 0;
+    if (r) r.disabled = _fut.length === 0;
+  }
+
+  // ── Visibility / collapse state ────────────────────────────────────────────
+  const vis = { boxes: true, ellipses: true, polygons: true, points: true };
+  const col = { boxes: false, ellipses: false, polygons: false, points: false };
+
+  const canvas = document.getElementById('canvas');
+  const ctx    = canvas.getContext('2d');
+  const img    = new Image();
+
+  img.onload = () => {
+    // trocar o fundo (banda/composicao) mantem zoom e posicao; so a 1a carga ajusta
+    if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
+      canvas.width = img.naturalWidth; canvas.height = img.naturalHeight; applyZoom(null);
+    }
+    redraw();
+  };
+
+  // ── Zoom ──────────────────────────────────────────────────────────────────
+  // Só muda o tamanho exibido do canvas: canvasCoords() já converte o clique
+  // pela proporção entre tamanho exibido e real, então desenho e seleção
+  // continuam no pixel certo. zoomLevel === null = ajustar à tela.
+  // Todo zoom é ancorado num ponto da imagem (ix,iy) que fica parado sob o
+  // ponto (vx,vy) da área visível -- cursor (Ctrl+roda), centro (botões) ou
+  // centro do retângulo (zoom por região).
+  const ZOOM_MIN = 0.1, ZOOM_MAX = 16, ZOOM_STEP = 1.25;
+  const WRAP_PAD = 16;   // padding do .canvas-wrap
+  let zoomLevel = null;
+  const canvasWrap = document.querySelector('.canvas-wrap');
+
+  function clampZoom(z) { return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z)); }
+  function currentScale() { return canvas.clientWidth / canvas.width; }
+  function fitScale() {
+    return Math.min((canvasWrap.clientWidth - 2 * WRAP_PAD) / canvas.width,
+                    (canvasWrap.clientHeight - 2 * WRAP_PAD) / canvas.height);
+  }
+  function viewCenterAnchor() {
+    const s = currentScale();
+    const vx = canvasWrap.clientWidth / 2, vy = canvasWrap.clientHeight / 2;
+    return { ix: (canvasWrap.scrollLeft + vx - canvas.offsetLeft) / s,
+             iy: (canvasWrap.scrollTop  + vy - canvas.offsetTop)  / s, vx, vy };
+  }
+
+  function applyZoom(level, anchor) {
+    if (level !== null && !anchor) anchor = viewCenterAnchor();
+    zoomLevel = level;
+    const s = level === null ? Math.max(0.01, fitScale()) : level;
+    canvas.style.maxWidth = 'none';
+    canvas.style.width = (canvas.width * s) + 'px';
+    document.getElementById('zoom-label').textContent = level === null ? 'Ajustar' : Math.round(level * 100) + '%';
+    // offsetLeft/offsetTop forçam o layout já com o tamanho novo
+    if (level === null) { canvasWrap.scrollLeft = 0; canvasWrap.scrollTop = 0; return; }
+    canvasWrap.scrollLeft = canvas.offsetLeft + anchor.ix * s - anchor.vx;
+    canvasWrap.scrollTop  = canvas.offsetTop  + anchor.iy * s - anchor.vy;
+  }
+  function zoomStep(factor, anchor) { applyZoom(clampZoom(currentScale() * factor), anchor); }
+  function zoomIn()  { zoomStep(ZOOM_STEP); }
+  function zoomOut() { zoomStep(1 / ZOOM_STEP); }
+  function zoomFit() { applyZoom(null); }
+  window.addEventListener('resize', () => { if (zoomLevel === null) applyZoom(null); });
+
+  canvasWrap.addEventListener('wheel', e => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    const r = canvasWrap.getBoundingClientRect();
+    const [ix, iy] = canvasCoords(e);
+    zoomStep(e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP,
+             { ix, iy, vx: e.clientX - r.left - canvasWrap.clientLeft, vy: e.clientY - r.top - canvasWrap.clientTop });
+  }, { passive: false });
+
+  // ── Zoom por região (retângulo) ───────────────────────────────────────────
+  // Ferramenta de uso único: arma (botão 🔍 ou Z), arrasta um retângulo, dá
+  // zoom pra ele caber na tela e volta pra ferramenta de anotação que estava.
+  // Listeners em fase de captura + stopImmediatePropagation: enquanto armado,
+  // os eventos não chegam nos handlers de desenho/seleção do canvas.
+  let zoomRectArmed = false, zoomRect = null, swallowClick = false;
+
+  function toggleZoomRect(on = !zoomRectArmed) {
+    zoomRectArmed = on; zoomRect = null;
+    canvasWrap.classList.toggle('zoom-armed', on);
+    document.getElementById('zoom-rect-btn').classList.toggle('active-zoom', on);
+    redraw();
+  }
+  function updateZoomRect(e) {
+    const [x, y] = canvasCoords(e);
+    zoomRect.x1 = Math.max(0, Math.min(canvas.width, x));
+    zoomRect.y1 = Math.max(0, Math.min(canvas.height, y));
+    redraw();
+  }
+  function finishZoomRect() {
+    const { x0, y0, x1, y1 } = zoomRect;
+    const w = Math.abs(x1 - x0), h = Math.abs(y1 - y0);
+    toggleZoomRect(false);
+    const vx = canvasWrap.clientWidth / 2, vy = canvasWrap.clientHeight / 2;
+    if (w < 4 || h < 4) { zoomStep(2, { ix: x0, iy: y0, vx, vy }); return; }   // clique simples: 2x no ponto
+    const level = clampZoom(Math.min((canvasWrap.clientWidth - 2 * WRAP_PAD) / w,
+                                     (canvasWrap.clientHeight - 2 * WRAP_PAD) / h));
+    applyZoom(level, { ix: (x0 + x1) / 2, iy: (y0 + y1) / 2, vx, vy });
+  }
+
+  canvas.addEventListener('mousedown', e => {
+    swallowClick = false;
+    if (!zoomRectArmed || e.button !== 0) return;
+    e.stopImmediatePropagation();
+    const [x, y] = canvasCoords(e);
+    zoomRect = { x0: x, y0: y, x1: x, y1: y };
+  }, true);
+  canvas.addEventListener('mousemove', e => {
+    if (!zoomRectArmed) return;
+    e.stopImmediatePropagation();
+    if (zoomRect) updateZoomRect(e);
+  }, true);
+  // mouseup/mousemove na janela: o arrasto pode terminar fora do canvas
+  window.addEventListener('mousemove', e => { if (zoomRect) updateZoomRect(e); });
+  window.addEventListener('mouseup', e => {
+    if (!zoomRect) return;
+    e.stopImmediatePropagation();
+    swallowClick = true;
+    finishZoomRect();
+  }, true);
+  ['click', 'dblclick'].forEach(t => canvas.addEventListener(t, e => {
+    if (zoomRectArmed || swallowClick) { e.stopImmediatePropagation(); swallowClick = false; }
+  }, true));
+  canvas.addEventListener('contextmenu', e => {   // botão direito cancela a ferramenta
+    if (!zoomRectArmed) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    toggleZoomRect(false);
+  }, true);
+  img.src = REF_IMAGE_URL;
+
+
+  // ── Curva espectral da forma selecionada (painel direito) ─────────────────
+  // Pede ao servidor o espectro médio (± desvio) da região em todas as bandas
+  // da amostra (mesma conta do "Salvar"/ROIs) sempre que a forma selecionada
+  // muda -- inclusive ao mover/editar, com atraso pra não disparar a cada pixel.
+  const SHAPE_NAMES = { box: 'Box', ellipse: 'Elipse', polygon: 'Polígono', point: 'Ponto' };
+  const UNIT_TXT = BANDS.unit === 'reflectance' ? 'reflectância (%)' : 'intensidade relativa (%)';
+  const SPEC_EMPTY_MSG = 'Selecione uma anotação pra ver o espectro médio dela.';
+  let spectrumKey = null, spectrumTimer = null, spectrumData = null, spectrumReq = 0;
+
+  function selectedShape() {
+    const pick = {
+      box:     () => selectedIdx >= 0 && boxes[selectedIdx] && { kind: 'box', idx: selectedIdx,
+                   shape: { shape: 'box', x1: boxes[selectedIdx][0], y1: boxes[selectedIdx][1], x2: boxes[selectedIdx][2], y2: boxes[selectedIdx][3] } },
+      ellipse: () => selectedEllipseIdx >= 0 && ellipses[selectedEllipseIdx] && { kind: 'ellipse', idx: selectedEllipseIdx,
+                   shape: { shape: 'ellipse', points: ellipses[selectedEllipseIdx] } },
+      polygon: () => selectedPolyIdx >= 0 && polygons[selectedPolyIdx] && { kind: 'polygon', idx: selectedPolyIdx,
+                   shape: { shape: 'polygon', points: polygons[selectedPolyIdx] } },
+      point:   () => selectedPtIdx >= 0 && points[selectedPtIdx] && { kind: 'point', idx: selectedPtIdx,
+                   shape: { shape: 'point', x: points[selectedPtIdx][0], y: points[selectedPtIdx][1] } },
+    };
+    // prioridade pro tipo da ferramenta atual; senão, qualquer forma selecionada (ex.: clique na lista)
+    return pick[mode]() || pick.polygon() || pick.ellipse() || pick.box() || pick.point() || null;
+  }
+
+  function scheduleSpectrum() {
+    const sel = selectedShape();
+    const key = sel ? JSON.stringify(sel.shape) : null;
+    if (key === spectrumKey) return;
+    spectrumKey = key;
+    clearTimeout(spectrumTimer);
+    spectrumReq++;                              // descarta resposta pendente de uma seleção anterior
+    if (!sel) { spectrumData = null; renderSpectrum(null, SPEC_EMPTY_MSG); return; }
+    const label = `${SHAPE_NAMES[sel.kind]} ${sel.kind === 'point' ? 'C' : sel.kind === 'ellipse' ? 'E' : ''}${sel.idx + 1}`;
+    spectrumTimer = setTimeout(async () => {
+      const req = ++spectrumReq;
+      try {
+        const { ok, data } = await apiJSON(URLS.spectrum, { shape: sel.shape });
+        if (req !== spectrumReq) return;
+        if (!ok) { renderSpectrum(null, data.error || 'Não foi possível calcular a curva.'); return; }
+        spectrumData = { label, mean: data.mean, std: data.std, n: data.n_pixels };
+        renderSpectrum(spectrumData);
+      } catch (e) {
+        if (req === spectrumReq) renderSpectrum(null, 'Erro de rede ao calcular a curva.');
+      }
+    }, 250);
+  }
+
+  function renderSpectrum(d, message) {
+    const box = document.getElementById('spectrum-box');
+    const empty = document.getElementById('spectrum-empty');
+    const caption = document.getElementById('spectrum-caption');
+    box.querySelectorAll('.sc-root').forEach(n => n.remove());
+    if (!d) {
+      empty.hidden = false; empty.textContent = message || '';
+      caption.textContent = UNIT_TXT;
+      return;
+    }
+    empty.hidden = true;
+    const missing = d.mean.filter(v => v == null).length;
+    caption.textContent = `${d.label} · ${d.n} px · ${UNIT_TXT}` + (missing ? ` · ${missing} banda(s) sem valor` : '');
+    spectrumChart(box, { x: BANDS.monotonic ? BANDS.wavelengths : null, labels: BANDS.labels,
+                         series: [{ label: d.label, color: 'var(--ink)', mean: d.mean, std: d.std }],
+                         ariaLabel: `Espectro médio de ${d.label}` });
+  }
+  window.addEventListener('resize', () => { if (spectrumData) renderSpectrum(spectrumData); });
+
+  // ── Bandas: visualizador, fundo do editor e composição colorida ───────────
+  const bandSlider = document.getElementById('band-slider');
+  const bandImg = document.getElementById('band-img');
+  const bandCmap = document.getElementById('band-cmap');
+  const bgSelect = document.getElementById('bg-select');
+  let rgbBands = BANDS.rgb.slice();
+  function bandUrl(i) { return `${BASE}/band/${i}.png?cmap=${bandCmap.value}`; }
+  function showBand() {
+    const i = parseInt(bandSlider.value);
+    bandImg.src = bandUrl(i);
+    document.getElementById('band-link').href = bandUrl(i);
+    document.getElementById('band-label').textContent = `${i + 1}/${BANDS.n} · ${BANDS.labels[i]}` +
+      (BANDS.names[i] && BANDS.names[i] !== BANDS.labels[i] ? ` · ${BANDS.names[i]}` : '');
+    if (bgSelect.value === 'band') setBackground(bandUrl(i));
+  }
+  let bandTimer = null;
+  bandSlider.addEventListener('input', () => { clearTimeout(bandTimer); bandTimer = setTimeout(showBand, 120); });
+  bandCmap.addEventListener('change', showBand);
+  bgSelect.addEventListener('change', () => setBackground(bgSelect.value === 'band' ? bandUrl(parseInt(bandSlider.value)) : REF_IMAGE_URL));
+  function setBackground(url) { img.src = url; }
+
+  ['rgb-r', 'rgb-g', 'rgb-b'].forEach((id, k) => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = BANDS.labels.map((l, i) => `<option value="${i}">${i + 1} · ${escHtml(l)}</option>`).join('');
+    sel.value = rgbBands[k];
+  });
+  function pickedRgb() { return ['rgb-r', 'rgb-g', 'rgb-b'].map(id => parseInt(document.getElementById(id).value)); }
+  function previewComposite() {
+    const [r, g, b] = pickedRgb();
+    bgSelect.value = 'rgb';
+    setBackground(`${BASE}/composite.png?r=${r}&g=${g}&b=${b}`);
+  }
+  async function saveComposite() {
+    const { ok, data } = await apiJSON(URLS.update, { rgb_bands: pickedRgb() });
+    if (!ok) { flashMsg(`Erro: ${data.error}`, '#f87171'); return; }
+    bgSelect.value = 'rgb';
+    setBackground(REF_IMAGE_URL + '?v=' + Date.now());
+    flashMsg('✓ Composição salva como padrão', '#4ade80');
+  }
+  async function saveMmpp(v) {
+    const { ok, data } = await apiJSON(URLS.update, { mm_per_pixel: v });
+    flashMsg(ok ? '✓ mm/pixel salvo — salve a anotação pra remedir as áreas' : `Erro: ${data.error}`, ok ? '#4ade80' : '#f87171');
+  }
+  // banda inicial: a do canal R da composição
+  bandSlider.value = rgbBands[0] || 0;
+  showBand();
+
+  // ── Mode switch ───────────────────────────────────────────────────────────
+  const HINTS = {
+    box:     'Arraste para criar box | Dir para remover',
+    ellipse: 'Arraste para criar elipse | Dir para remover',
+    polygon: 'Clique pra começar e clique de novo pra fechar (ou arraste) | Esc/Dir: cancela | Duplo clique vértice: remove | Duplo clique aresta: insere',
+    point:   'Clique para marcar pixel | Dir para remover',
+  };
+
+  function setMode(newMode) {
+    mode = newMode;
+    // encerra qualquer edicao em andamento -- troca de ferramenta no meio de
+    // um arrasto so acontece em cenario bem raro (atalho de teclado com o
+    // botao do mouse ainda pressionado), mas assim curArr()/curSel() (que
+    // seguem o `mode` atual) nunca ficam apontando pro array errado.
+    drawing = false; currentPoly = []; polyPress = null; movingPolyIdx = -1; editingVertIdx = -1;
+    canvas.style.cursor = '';
+    ['box','ellipse','poly','point'].forEach(id => {
+      document.getElementById('mode-' + id).className = 'mode-btn';
+    });
+    const activeClass = { box:'active-box', ellipse:'active-ellipse', polygon:'active-poly', point:'active-point' }[mode];
+    const btnId = mode === 'polygon' ? 'mode-poly' : 'mode-' + mode;
+    document.getElementById(btnId).classList.add(activeClass);
+    document.body.className = 'annotate-page mode-' + mode;
+    document.getElementById('tool-hint').textContent = HINTS[mode] || '';
+    redraw();
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function ellipseToPolygon(cx, cy, rx, ry, n = ELLIPSE_PTS) {
+    return Array.from({length: n}, (_, i) => {
+      const a = (2 * Math.PI * i) / n;
+      return [Math.round(cx + rx * Math.cos(a)), Math.round(cy + ry * Math.sin(a))];
+    });
+  }
+
+  function canvasCoords(e) {
+    const r = canvas.getBoundingClientRect();
+    return [(e.clientX - r.left) * canvas.width / r.width,
+            (e.clientY - r.top)  * canvas.height / r.height];
+  }
+
+  // Desenha um conjunto de formas (polygons OU ellipses, nunca os dois
+  // juntos) -- cor/rótulo diferentes só pra facilitar visualmente, a lógica
+  // é idêntica pros dois, dado que cada elipse já é uma lista de pontos.
+  function drawShapeSet(arr, selIdx, isEllipse) {
+    arr.forEach((pts, i) => {
+      if (pts.length < 2) return;
+      const act = i === selIdx;
+      const strokeCol = isEllipse ? (act ? '#67e8f9' : '#22d3ee') : (act ? '#e879f9' : '#a855f7');
+      const path = new Path2D();
+      path.moveTo(pts[0][0], pts[0][1]);
+      pts.slice(1).forEach(([x,y]) => path.lineTo(x,y));
+      path.closePath();
+      ctx.strokeStyle = strokeCol; ctx.lineWidth = act ? 3 : 2;
+      ctx.stroke(path);
+      ctx.fillStyle = act ? (isEllipse?'rgba(103,232,249,.12)':'rgba(232,121,249,.12)')
+                          : (isEllipse?'rgba(34,211,238,.07)' :'rgba(168,85,247,.07)');
+      ctx.fill(path);
+      const cx = pts.reduce((s,p)=>s+p[0],0)/pts.length;
+      const cy = pts.reduce((s,p)=>s+p[1],0)/pts.length;
+      ctx.fillStyle = strokeCol; ctx.font = 'bold 14px system-ui';
+      ctx.fillText(isEllipse ? `E${i+1}` : `${i+1}`, cx-8, cy+5);
+    });
+  }
+
+  // Alças de vértice (arrastáveis) da forma selecionada NO MODO ATIVO --
+  // hoverVertIdx/hoverEdgeIdx/editingVertIdx são compartilhados entre
+  // polígono e elipse (só um dos dois pode estar sendo editado por vez,
+  // já que o modo é exclusivo), por isso só chamado pro array do modo atual.
+  function drawSelectedVertices(arr, selIdx) {
+    if (selIdx < 0 || !arr[selIdx]) return;
+    const vpts = arr[selIdx];
+    if (hoverEdgeIdx >= 0) {
+      const p1 = vpts[hoverEdgeIdx], p2 = vpts[(hoverEdgeIdx+1) % vpts.length];
+      ctx.fillStyle = '#a3e635'; ctx.strokeStyle = '#333'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc((p1[0]+p2[0])/2, (p1[1]+p2[1])/2, 4, 0, 2*Math.PI);
+      ctx.fill(); ctx.stroke();
+    }
+    vpts.forEach(([vx, vy], vi) => {
+      const dragging = vi === editingVertIdx;
+      const hovering = vi === hoverVertIdx;
+      ctx.fillStyle   = dragging ? '#facc15' : (hovering ? '#f0abfc' : '#fff');
+      ctx.strokeStyle = dragging ? '#a16207' : '#555';
+      ctx.lineWidth   = 1.5;
+      ctx.beginPath(); ctx.rect(vx-4, vy-4, 8, 8); ctx.fill(); ctx.stroke();
+    });
+  }
+
+  // ── Section toggle ────────────────────────────────────────────────────────
+  function toggleSection(type, onlyVis) {
+    if (onlyVis) { vis[type] = !vis[type]; } else { col[type] = !col[type]; }
+    redraw();
+    updateSidebar();
+  }
+
+  // ── Redraw ────────────────────────────────────────────────────────────────
+  function redraw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+
+    if (vis.boxes) boxes.forEach(([x1, y1, x2, y2], i) => {
+      const act = i === selectedIdx;
+      ctx.strokeStyle = act ? '#7ecfff' : '#4ade80';
+      ctx.lineWidth   = act ? 3 : 2;
+      ctx.strokeRect(x1, y1, x2-x1, y2-y1);
+      ctx.fillStyle = act ? 'rgba(126,207,255,.08)' : 'rgba(74,222,128,.06)';
+      ctx.fillRect(x1, y1, x2-x1, y2-y1);
+      ctx.fillStyle = act ? '#7ecfff' : '#4ade80';
+      ctx.font = 'bold 14px system-ui';
+      ctx.fillText(i+1, x1+4, y1+16);
+    });
+
+    if (drawing && (mode === 'box' || mode === 'ellipse')) {
+      ctx.setLineDash([6,3]); ctx.strokeStyle = '#facc15'; ctx.lineWidth = 2;
+      if (mode === 'box') {
+        ctx.strokeRect(startX, startY, curX-startX, curY-startY);
+      } else {
+        const cx=(startX+curX)/2, cy=(startY+curY)/2,
+              rx=Math.abs(curX-startX)/2, ry=Math.abs(curY-startY)/2;
+        ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, 2*Math.PI); ctx.stroke();
+      }
+      ctx.setLineDash([]);
+    }
+
+    if (vis.polygons) drawShapeSet(polygons, selectedPolyIdx, false);
+    if (vis.ellipses) drawShapeSet(ellipses, selectedEllipseIdx, true);
+    if (mode === 'polygon' && vis.polygons) drawSelectedVertices(polygons, selectedPolyIdx);
+    if (mode === 'ellipse' && vis.ellipses) drawSelectedVertices(ellipses, selectedEllipseIdx);
+
+    if (mode === 'polygon' && drawing && currentPoly.length) {
+      const lw = 1 / currentScale();   // 1 px de tela, qualquer zoom
+      const [fx, fy] = currentPoly[0];
+      const path = new Path2D();
+      path.moveTo(fx, fy);
+      currentPoly.slice(1).forEach(([x,y]) => path.lineTo(x,y));
+      if (polyCursor) path.lineTo(polyCursor[0], polyCursor[1]);
+      // traçado amarelo contínuo com contorno escuro por baixo: contraste em fundo claro ou escuro
+      ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(0,0,0,.65)'; ctx.lineWidth = 5.5 * lw; ctx.stroke(path);
+      ctx.strokeStyle = '#facc15';         ctx.lineWidth = 3 * lw;   ctx.stroke(path);
+      if (polyCursor && currentPoly.length > 2) {   // por onde vai fechar
+        ctx.beginPath(); ctx.moveTo(polyCursor[0], polyCursor[1]); ctx.lineTo(fx, fy);
+        ctx.strokeStyle = 'rgba(250,204,21,.85)'; ctx.lineWidth = 2 * lw;
+        ctx.setLineDash([5*lw, 4*lw]); ctx.stroke(); ctx.setLineDash([]);
+      }
+      ctx.beginPath(); ctx.arc(fx, fy, 5 * lw, 0, 2*Math.PI);
+      ctx.fillStyle = '#facc15'; ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,.65)'; ctx.lineWidth = 1.5 * lw; ctx.stroke();
+      ctx.lineJoin = 'miter'; ctx.lineCap = 'butt';
+    }
+
+    if (vis.points) points.forEach(([px, py], i) => {
+      const act = i === selectedPtIdx;
+      const r = act ? 7 : 5;
+      ctx.beginPath(); ctx.arc(px, py, r, 0, 2*Math.PI);
+      ctx.fillStyle = act ? '#fb923c' : '#f97316'; ctx.fill();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.strokeStyle = act ? '#fb923c' : '#f97316'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(px-10,py); ctx.lineTo(px+10,py); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px,py-10); ctx.lineTo(px,py+10); ctx.stroke();
+      ctx.fillStyle = act ? '#fb923c' : '#f97316';
+      ctx.font = 'bold 12px system-ui';
+      ctx.fillText(`C${i+1}`, px+8, py-6);
+    });
+
+    if (zoomRect) {
+      const lw = 2 / currentScale();   // espessura constante na tela, qualquer zoom
+      ctx.setLineDash([6 * lw, 4 * lw]); ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = lw;
+      ctx.strokeRect(zoomRect.x0, zoomRect.y0, zoomRect.x1 - zoomRect.x0, zoomRect.y1 - zoomRect.y0);
+      ctx.fillStyle = 'rgba(56,189,248,.10)';
+      ctx.fillRect(zoomRect.x0, zoomRect.y0, zoomRect.x1 - zoomRect.x0, zoomRect.y1 - zoomRect.y0);
+      ctx.setLineDash([]);
+    }
+
+    updateSidebar();
+    updateCount();
+    updateAIButtons();
+    scheduleSpectrum();
+  }
+
+  // ── Mouse events ──────────────────────────────────────────────────────────
+  canvas.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    const [x, y] = canvasCoords(e);
+
+    if (mode === 'box') {
+      const hit = hitTestBox(x, y);
+      if (hit >= 0) { selectedIdx = selectedIdx===hit ? -1 : hit; redraw(); return; }
+      [startX,startY,curX,curY] = [x,y,x,y]; drawing = true; selectedIdx = -1;
+      return;
+    }
+
+    if (mode === 'polygon' && drawing && !polyPress) { finishPolygon(); return; }
+
+    if (mode === 'polygon' || mode === 'ellipse') {
+      const arr = curArr(), sel = curSel();
+      if (sel >= 0) {
+        const vHit = hitTestVertex(x, y, sel, arr);
+        if (vHit >= 0) { snapshot(); editingVertIdx = vHit; canvas.style.cursor = 'move'; return; }
+      }
+      const hit = hitTestPoly(x, y, arr);
+      if (hit >= 0) {
+        snapshot();
+        setCurSel(hit); movingPolyIdx = hit;
+        [moveStartX, moveStartY] = [x, y];
+        canvas.style.cursor = 'grabbing';
+        redraw(); return;
+      }
+      if (mode === 'polygon') {
+        currentPoly = [[Math.round(x), Math.round(y)]]; drawing = true; polyCursor = [x, y];
+        polyPress = { cx: e.clientX, cy: e.clientY, hadSel: sel >= 0, moved: false };
+      } else {
+        [startX, startY, curX, curY] = [x, y, x, y]; drawing = true;
+      }
+      return;
+    }
+
+    if (mode === 'point') {
+      snapshot();
+      points.push([Math.round(x), Math.round(y)]);
+      point_labels.push('');
+      redraw();
+    }
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    const [x, y] = canvasCoords(e);
+
+    if (editingVertIdx >= 0 && (mode==='polygon'||mode==='ellipse') && curSel() >= 0) {
+      curArr()[curSel()][editingVertIdx] = [Math.round(x), Math.round(y)];
+      redraw(); return;
+    }
+    if ((mode==='box'||mode==='ellipse') && drawing) { [curX,curY]=[x,y]; redraw(); return; }
+    if ((mode==='polygon'||mode==='ellipse') && movingPolyIdx>=0) {
+      const arr = curArr();
+      const dx=x-moveStartX, dy=y-moveStartY;
+      arr[movingPolyIdx]=arr[movingPolyIdx].map(([px,py])=>[Math.round(px+dx),Math.round(py+dy)]);
+      [moveStartX,moveStartY]=[x,y]; redraw(); return;
+    }
+    if (mode==='polygon' && drawing) {
+      const last=currentPoly[currentPoly.length-1];
+      if (Math.hypot(x-last[0],y-last[1])>3) currentPoly.push([Math.round(x),Math.round(y)]);
+      polyCursor = [x, y];
+      // arrasto = andou com o botão pressionado (o laço costuma terminar perto
+      // de onde começou, então não dá pra comparar só o ponto inicial e o final)
+      if (polyPress && Math.hypot(e.clientX - polyPress.cx, e.clientY - polyPress.cy) > 5) polyPress.moved = true;
+      redraw(); return;
+    }
+    if ((mode==='polygon'||mode==='ellipse') && !drawing) {
+      const arr = curArr(), sel = curSel();
+      if (sel >= 0) {
+        const vH = hitTestVertex(x, y, sel, arr);
+        const eH = vH < 0 ? hitTestEdge(x, y, sel, arr) : -1;
+        if (vH !== hoverVertIdx || eH !== hoverEdgeIdx) { hoverVertIdx = vH; hoverEdgeIdx = eH; redraw(); }
+        canvas.style.cursor = vH >= 0 ? 'move' : (eH >= 0 ? 'copy' : (hitTestPoly(x,y,arr)>=0 ? 'grab' : 'crosshair'));
+      } else {
+        hoverVertIdx = -1; hoverEdgeIdx = -1;
+        canvas.style.cursor = hitTestPoly(x,y,arr)>=0 ? 'grab' : 'crosshair';
+      }
+    }
+  });
+
+  canvas.addEventListener('mouseup', e => {
+    const [x, y] = canvasCoords(e);
+
+    if (editingVertIdx >= 0) { editingVertIdx = -1; canvas.style.cursor = 'move'; redraw(); return; }
+    if (movingPolyIdx >= 0) {
+      movingPolyIdx = -1;
+      canvas.style.cursor = (mode==='polygon'||mode==='ellipse') && hitTestPoly(x,y,curArr())>=0 ? 'grab' : 'crosshair';
+      redraw(); return;
+    }
+    if (mode === 'polygon') {
+      if (!drawing || !polyPress) return;   // no modo clique, quem fecha é o próximo mousedown
+      const p = polyPress; polyPress = null;
+      if (p.moved) { finishPolygon(); return; }    // segurou e arrastou
+      if (p.hadSel) { cancelPolygon(); return; }   // clique fora com um polígono selecionado: só desseleciona
+      return;                                      // clique simples: começa o desenho, segue o mouse
+    }
+    if (!drawing) return;
+    drawing = false;
+
+    if (mode === 'box') {
+      [curX,curY] = canvasCoords(e);
+      const x1=Math.round(Math.min(startX,curX)), y1=Math.round(Math.min(startY,curY));
+      const x2=Math.round(Math.max(startX,curX)), y2=Math.round(Math.max(startY,curY));
+      if ((x2-x1)>8 && (y2-y1)>8) { snapshot(); boxes.push([x1,y1,x2,y2]); labels.push(''); }
+      redraw(); return;
+    }
+
+    if (mode === 'ellipse') {
+      [curX,curY] = canvasCoords(e);
+      const cx=(startX+curX)/2, cy=(startY+curY)/2;
+      const rx=Math.abs(curX-startX)/2, ry=Math.abs(curY-startY)/2;
+      if (rx>4 && ry>4) { snapshot(); ellipses.push(ellipseToPolygon(cx, cy, rx, ry)); ellipse_labels.push(''); }
+      redraw(); return;
+    }
+
+  });
+
+  function finishPolygon() {
+    drawing = false; polyPress = null; polyCursor = null; lastPolyFinish = performance.now();
+    if (currentPoly.length >= 6) {
+      const s = simplifyPath(currentPoly, 1.5);
+      if (isClosedSurface(s)) { snapshot(); polygons.push(s); poly_labels.push(''); }
+    }
+    currentPoly = []; redraw();
+  }
+  function cancelPolygon() {
+    drawing = false; polyPress = null; polyCursor = null; currentPoly = []; redraw();
+  }
+
+  canvas.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    if (mode === 'polygon' && drawing) { cancelPolygon(); return; }
+    const [mx,my] = canvasCoords(e);
+    if (mode==='box') {
+      const h=hitTestBox(mx,my);
+      if (h>=0) { snapshot(); boxes.splice(h,1); labels.splice(h,1); selectedIdx=-1; redraw(); }
+    } else if (mode==='ellipse'||mode==='polygon') {
+      const arr = curArr(), lbl = curLbl();
+      const h=hitTestPoly(mx,my,arr);
+      if (h>=0) { snapshot(); arr.splice(h,1); lbl.splice(h,1); setCurSel(-1); redraw(); }
+    } else if (mode==='point') {
+      const h=hitTestPoint(mx,my);
+      if (h>=0) { snapshot(); points.splice(h,1); point_labels.splice(h,1); selectedPtIdx=-1; redraw(); }
+    }
+  });
+
+  canvas.addEventListener('click', e => {
+    if (e.detail >= 2) return;
+    const [x,y] = canvasCoords(e);
+    if ((mode==='polygon'||mode==='ellipse') && !drawing) {
+      const h=hitTestPoly(x,y,curArr());
+      setCurSel(h >= 0 ? h : -1);
+      hoverVertIdx = -1; hoverEdgeIdx = -1;
+      redraw();
+    }
+    if (mode==='point') {
+      const h=hitTestPoint(x,y);
+      selectedPtIdx=(h>=0&&selectedPtIdx!==h)?h:-1; redraw();
+    }
+  });
+
+  canvas.addEventListener('dblclick', e => {
+    e.preventDefault();
+    if (mode !== 'polygon' && mode !== 'ellipse') return;
+    if (drawing || performance.now() - lastPolyFinish < 500) return;   // foi o clique que fechou o polígono
+    const [x, y] = canvasCoords(e);
+    const arr = curArr();
+    const shapeIdx = curSel() >= 0 ? curSel() : hitTestPoly(x, y, arr);
+    if (shapeIdx < 0) return;
+    setCurSel(shapeIdx);
+
+    const vHit = hitTestVertex(x, y, shapeIdx, arr);
+    if (vHit >= 0) {
+      if (arr[shapeIdx].length > 4) { snapshot(); arr[shapeIdx].splice(vHit, 1); }
+      redraw(); return;
+    }
+    const eHit = hitTestEdge(x, y, shapeIdx, arr);
+    if (eHit >= 0) { snapshot(); arr[shapeIdx].splice(eHit + 1, 0, [Math.round(x), Math.round(y)]); redraw(); }
+  });
+
+  // ── Hit tests ─────────────────────────────────────────────────────────────
+  function hitTestBox(mx,my) {
+    for (let i=boxes.length-1;i>=0;i--) {
+      const [x1,y1,x2,y2]=boxes[i];
+      if (mx>=x1&&mx<=x2&&my>=y1&&my<=y2) return i;
+    }
+    return -1;
+  }
+  function hitTestPoly(mx, my, arr) {
+    for (let i=arr.length-1;i>=0;i--) {
+      const pts=arr[i]; if (pts.length<3) continue;
+      const path=new Path2D();
+      path.moveTo(pts[0][0],pts[0][1]);
+      pts.slice(1).forEach(([x,y])=>path.lineTo(x,y)); path.closePath();
+      if (ctx.isPointInPath(path,mx,my)) return i;
+    }
+    return -1;
+  }
+  function hitTestPoint(mx,my,r=12) {
+    for (let i=points.length-1;i>=0;i--) {
+      if (Math.hypot(mx-points[i][0],my-points[i][1])<=r) return i;
+    }
+    return -1;
+  }
+  function hitTestVertex(mx, my, polyIdx, arr, r=7) {
+    if (polyIdx < 0 || !arr[polyIdx]) return -1;
+    const pts = arr[polyIdx];
+    for (let i = pts.length-1; i >= 0; i--) {
+      if (Math.hypot(mx-pts[i][0], my-pts[i][1]) <= r) return i;
+    }
+    return -1;
+  }
+  function hitTestEdge(mx, my, polyIdx, arr, threshold=6) {
+    if (polyIdx < 0 || !arr[polyIdx]) return -1;
+    const pts = arr[polyIdx];
+    for (let i = 0; i < pts.length; i++) {
+      const [x1,y1] = pts[i], [x2,y2] = pts[(i+1) % pts.length];
+      if (distToSegment(mx, my, x1, y1, x2, y2) <= threshold) return i;
+    }
+    return -1;
+  }
+  function distToSegment(px, py, x1, y1, x2, y2) {
+    const dx=x2-x1, dy=y2-y1, len2=dx*dx+dy*dy;
+    if (len2 === 0) return Math.hypot(px-x1, py-y1);
+    const t = Math.max(0, Math.min(1, ((px-x1)*dx+(py-y1)*dy)/len2));
+    return Math.hypot(px-(x1+t*dx), py-(y1+t*dy));
+  }
+
+  // ── RDP simplification ────────────────────────────────────────────────────
+  function isClosedSurface(pts) {
+    if (pts.length < 3) return false;
+    let area2 = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % pts.length];
+      area2 += x1 * y2 - x2 * y1;
+    }
+    return area2 !== 0;
+  }
+
+  function simplifyPath(pts,epsilon) {
+    if (pts.length<=2) return pts;
+    const first=pts[0],last=pts[pts.length-1];
+    let maxD=0,maxI=0;
+    for (let i=1;i<pts.length-1;i++) { const d=perpDist(pts[i],first,last); if(d>maxD){maxD=d;maxI=i;} }
+    if (maxD>epsilon) {
+      const L=simplifyPath(pts.slice(0,maxI+1),epsilon);
+      const R=simplifyPath(pts.slice(maxI),epsilon);
+      return [...L.slice(0,-1),...R];
+    }
+    return [first,last];
+  }
+  function perpDist(pt,a,b) {
+    const dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy);
+    if(len===0) return Math.hypot(pt[0]-a[0],pt[1]-a[1]);
+    return Math.abs(dx*(a[1]-pt[1])-(a[0]-pt[0])*dy)/len;
+  }
+
+  // ── Actions ───────────────────────────────────────────────────────────────
+  function clearAll() {
+    const b=boxes.length, el=ellipses.length, p=polygons.length, pt=points.length;
+    if (b+p+el+pt === 0) return;
+    const parts = [];
+    if (b)  parts.push(`${b} box${b!==1?'es':''}`);
+    if (el) parts.push(`${el} elipse${el!==1?'s':''}`);
+    if (p)  parts.push(`${p} polígono${p!==1?'s':''}`);
+    if (pt) parts.push(`${pt} ponto${pt!==1?'s':''}`);
+    document.getElementById('clear-modal-msg').textContent =
+      `Isso vai remover ${parts.join(', ')}. Esta ação pode ser desfeita com Ctrl+Z.`;
+    document.getElementById('clear-modal').classList.add('open');
+  }
+  function closeClearModal() { document.getElementById('clear-modal').classList.remove('open'); }
+  function confirmClearAll() {
+    closeClearModal();
+    snapshot();
+    boxes=[];labels=[];ellipses=[];ellipse_labels=[];polygons=[];poly_labels=[];points=[];point_labels=[];
+    currentPoly=[];selectedIdx=-1;selectedEllipseIdx=-1;selectedPolyIdx=-1;selectedPtIdx=-1;
+    redraw();
+  }
+
+  function deleteBox(i)     { snapshot(); boxes.splice(i,1);    labels.splice(i,1);         selectedIdx=-1;        redraw(); }
+  function deleteEllipse(i) { snapshot(); ellipses.splice(i,1); ellipse_labels.splice(i,1); selectedEllipseIdx=-1; redraw(); }
+  function deletePoly(i)    { snapshot(); polygons.splice(i,1); poly_labels.splice(i,1);    selectedPolyIdx=-1;    redraw(); }
+  function deletePt(i)      { snapshot(); points.splice(i,1);   point_labels.splice(i,1);   selectedPtIdx=-1;      redraw(); }
+
+  async function saveAnnotations() {
+    syncLabelsFromInputs();
+    const { ok, data } = await apiJSON(URLS.save, { boxes, labels, ellipses, ellipse_labels, polygons, poly_labels, points, point_labels });
+    if (!ok || data.ok === false) return;
+    // calcula os ROIs automaticamente junto do save, sem precisar de botao
+    // separado -- so faz sentido se tiver algo desenhado (o endpoint recusa
+    // com erro se nao tiver nenhum box/poligono/elipse/ponto ainda).
+    if (!boxes.length && !ellipses.length && !polygons.length && !points.length) { flashSaved(); return; }
+    try {
+      const roiRes = await apiJSON(URLS.computeRois, {});
+      if (roiRes.ok && roiRes.data.ok !== false) {
+        const parts = Object.entries(roiRes.data.by_method || {}).map(([m, n]) => `${m}: ${n}`).join(' · ');
+        flashMsg(`✓ Salvo · ${roiRes.data.total} ROI(s) medidos (${parts})`, '#4ade80');
+      } else {
+        flashSaved();  // salvou normal, so o calculo de ROI que nao rolou (ex.: sem fotos em disco)
+      }
+    } catch (e) {
+      flashSaved();
+    }
+  }
+
+  function syncLabelsFromInputs() {
+    document.querySelectorAll('.box-row').forEach(row=>{
+      const inp=row.querySelector('.label-input'); if(!inp) return;
+      const idx=parseInt(row.dataset.idx); if(isNaN(idx)) return;
+      if      (row.dataset.type==='ellipse') { if(idx<ellipse_labels.length) ellipse_labels[idx]=inp.value.trim(); }
+      else if (row.dataset.type==='poly')    { if(idx<poly_labels.length)    poly_labels[idx]=inp.value.trim(); }
+      else if (row.dataset.type==='point')   { if(idx<point_labels.length)   point_labels[idx]=inp.value.trim(); }
+      else                                   { if(idx<labels.length)         labels[idx]=inp.value.trim(); }
+    });
+  }
+
+  async function navigate(id) {
+    syncLabelsFromInputs();
+    // espera o save (que agora tambem calcula os ROIs) terminar antes de
+    // trocar de pagina -- sem o await, o navegador podia cancelar a
+    // segunda requisicao (o calculo) no meio do caminho.
+    if (boxes.length>0||ellipses.length>0||polygons.length>0||points.length>0) await saveAnnotations();
+    window.location.href = '/samples/' + id + '/';
+  }
+
+  function flashSaved() {
+    const el=document.getElementById('saved-msg');
+    el.style.opacity='1'; setTimeout(()=>el.style.opacity='0',1800);
+  }
+
+  async function autoSegment(method) {
+    const btn = document.getElementById(`btn-auto-${method}`);
+    btn.disabled = true;
+    const orig = btn.textContent; btn.textContent = '⏳...';
+    try {
+      const { ok, data } = await apiGET(method === 'otsu' ? URLS.otsu : URLS.yolo);
+      if (!ok || data.error) { flashMsg(`Erro: ${data.error || 'falha'}`, '#f87171'); return; }
+      if (!data.polygons || data.polygons.length === 0) { flashMsg('Nenhum contorno encontrado.', '#fbbf24'); return; }
+      snapshot();
+      polygons.length = 0; poly_labels.length = 0;
+      polygons.push(...data.polygons);
+      poly_labels.push(...Array(data.polygons.length).fill(''));
+      selectedPolyIdx = polygons.length - 1;
+      redraw();
+      flashMsg(`✓ ${data.count} contorno(s) gerados`, '#4ade80');
+    } catch(e) {
+      flashMsg(`Erro de rede: ${e.message}`, '#f87171');
+    } finally {
+      btn.disabled = false; btn.textContent = orig;
+    }
+  }
+
+  // SAM (Spectral Angle Mapper): os polígonos/elipses já desenhados viram a
+  // referência espectral; o servidor devolve só as amostras NOVAS (o que cai em
+  // cima de uma forma existente é ignorado), então dá pra rodar de novo sem duplicar.
+  async function autoSegmentSam() {
+    const refs = polygons.length + ellipses.length;
+    if (!refs) {
+      flashMsg('Desenhe pelo menos um polígono ou elipse em volta de uma amostra pra servir de referência.', '#fbbf24');
+      return;
+    }
+    const btn = document.getElementById('btn-auto-sam');
+    btn.disabled = true; const orig = btn.textContent; btn.textContent = '⏳...';
+    try {
+      const { ok, data } = await apiJSON(URLS.sam, { polygons, ellipses });
+      if (!ok || data.error) { flashMsg(`Erro: ${data.error || 'falha'}`, '#f87171'); return; }
+      if (!data.polygons || data.polygons.length === 0) { flashMsg('Nenhuma amostra nova encontrada.', '#fbbf24'); return; }
+      snapshot();
+      polygons.push(...data.polygons);
+      poly_labels.push(...Array(data.polygons.length).fill(''));
+      redraw();
+      const refTxt = refs === 1 ? '1 referência' : `${refs} referências`;
+      flashMsg(`✓ ${data.count} amostra(s) por SAM (${refTxt}, limiar ${data.threshold_deg}°)`, '#4ade80');
+    } catch(e) {
+      flashMsg(`Erro de rede: ${e.message}`, '#f87171');
+    } finally {
+      btn.disabled = false; btn.textContent = orig;
+    }
+  }
+
+  async function boxesToPolygons() {
+    if (!boxes.length) { flashMsg('Sem boxes pra converter.', '#fbbf24'); return; }
+    const btn = document.getElementById('btn-auto-boxpoly');
+    btn.disabled = true; const orig = btn.textContent; btn.textContent = '⏳...';
+    try {
+      const { ok, data } = await apiJSON(URLS.boxpoly, { boxes, labels });
+      if (!ok || data.error) { flashMsg(`Erro: ${data.error || 'falha'}`, '#f87171'); return; }
+      if (!data.polygons || data.polygons.length === 0) { flashMsg('Nenhum contorno encontrado nas boxes.', '#fbbf24'); return; }
+      snapshot();
+      polygons.push(...data.polygons);
+      poly_labels.push(...data.poly_labels);
+      selectedPolyIdx = polygons.length - 1;
+      redraw();
+      flashMsg(`✓ ${data.count} polígono(s) gerados a partir das boxes`, '#4ade80');
+    } catch(e) {
+      flashMsg(`Erro de rede: ${e.message}`, '#f87171');
+    } finally {
+      btn.disabled = false; btn.textContent = orig;
+    }
+  }
+
+  function openIAModal() { updateAIButtons(); document.getElementById('ia-modal').classList.add('open'); }
+  function closeIAModal(e) {
+    if (e && e.target !== document.getElementById('ia-modal')) return;
+    document.getElementById('ia-modal').classList.remove('open');
+  }
+
+  async function autoDetect() {
+    document.getElementById('ia-modal').classList.remove('open');
+    try {
+      const { ok, data } = await apiGET(URLS.det);
+      if (!ok || data.error) { flashMsg(`Erro: ${data.error || 'falha'}`, '#f87171'); return; }
+      if (!data.boxes || data.boxes.length === 0) { flashMsg('Nenhuma detecção encontrada.', '#fbbf24'); return; }
+      snapshot();
+      data.boxes.forEach(b => { boxes.push(b); labels.push(''); });
+      redraw();
+      flashMsg(`✓ ${data.count} box(es) detectados`, '#4ade80');
+    } catch(e) { flashMsg(`Erro de rede: ${e.message}`, '#f87171'); }
+  }
+
+  async function autoSegmentYolo() {
+    document.getElementById('ia-modal').classList.remove('open');
+    try {
+      const { ok, data } = await apiGET(URLS.yolo);
+      if (!ok || data.error) { flashMsg(`Erro: ${data.error || 'falha'}`, '#f87171'); return; }
+      if (!data.polygons || data.polygons.length === 0) { flashMsg('Nenhum contorno encontrado.', '#fbbf24'); return; }
+      snapshot();
+      polygons.push(...data.polygons);
+      poly_labels.push(...Array(data.polygons.length).fill(''));
+      selectedPolyIdx = polygons.length - 1;
+      redraw();
+      flashMsg(`✓ ${data.count} contorno(s) da IA adicionados — revise e apague os errados`, '#4ade80');
+    } catch(e) { flashMsg(`Erro de rede: ${e.message}`, '#f87171'); }
+  }
+
+  async function autoClassify() {
+    document.getElementById('ia-modal').classList.remove('open');
+    syncLabelsFromInputs();
+    try {
+      const { ok, data } = await apiJSON(URLS.classify, { boxes, ellipses, polygons });
+      if (!ok || data.error) { flashMsg(`Erro: ${data.error || 'falha'}`, '#f87171'); return; }
+      snapshot();
+      (data.box_labels     || []).forEach((l, i) => { if (i < labels.length         && l) labels[i]         = l; });
+      (data.ellipse_labels || []).forEach((l, i) => { if (i < ellipse_labels.length && l) ellipse_labels[i] = l; });
+      (data.poly_labels    || []).forEach((l, i) => { if (i < poly_labels.length    && l) poly_labels[i]    = l; });
+      redraw();
+      const total = [...(data.box_labels||[]), ...(data.ellipse_labels||[]), ...(data.poly_labels||[])].filter(Boolean).length;
+      flashMsg(`✓ ${total} anotação(ões) classificada(s)` + (data.kind === 'spectral' ? ' pelo espectro' : ''), '#4ade80');
+    } catch(e) { flashMsg(`Erro de rede: ${e.message}`, '#f87171'); }
+  }
+
+  function updateAIButtons() {
+    const hasAnn = boxes.length > 0 || ellipses.length > 0 || polygons.length > 0;
+    const optDet = document.getElementById('ia-opt-det');
+    const optSeg = document.getElementById('ia-opt-seg');
+    const optCls = document.getElementById('ia-opt-cls');
+    if (optDet) optDet.classList.toggle('ia-disabled', !MODELS.det);
+    if (optSeg) optSeg.classList.toggle('ia-disabled', !MODELS.seg);
+    if (optCls) optCls.classList.toggle('ia-disabled', !MODELS.cls || !hasAnn);
+  }
+
+  function flashMsg(text, color) {
+    const el = document.getElementById('saved-msg');
+    el.style.color = color; el.textContent = text; el.style.opacity = '1';
+    setTimeout(() => { el.style.opacity = '0'; el.style.color = '#4ade80'; el.textContent = '✓ Salvo!'; }, 2800);
+  }
+
+  // ── Accordion section builder ─────────────────────────────────────────────
+  function makeSection(list, type, icon, label, colorClass, count, buildRows) {
+    const isCollapsed = col[type];
+    const isVisible   = vis[type];
+
+    const hdr = document.createElement('div');
+    hdr.className = `acc-header h-${colorClass}`;
+    const arrow = document.createElement('span');
+    arrow.className = 'acc-arrow' + (isCollapsed ? '' : ' open'); arrow.textContent = '▶';
+    const iconEl = document.createElement('span');
+    iconEl.className = 'acc-icon'; iconEl.textContent = icon;
+    const nameEl = document.createElement('span');
+    nameEl.className = `acc-name h-${colorClass}`; nameEl.textContent = label;
+    const badge = document.createElement('span');
+    badge.className = 'acc-badge'; badge.textContent = count;
+    const eye = document.createElement('span');
+    eye.className = 'acc-eye'; eye.title = isVisible ? 'Ocultar no canvas' : 'Mostrar no canvas';
+    eye.textContent = isVisible ? '👁' : '🙈';
+    eye.addEventListener('click', e => { e.stopPropagation(); toggleSection(type, true); });
+    hdr.appendChild(arrow); hdr.appendChild(iconEl); hdr.appendChild(nameEl); hdr.appendChild(badge); hdr.appendChild(eye);
+    hdr.addEventListener('click', () => toggleSection(type, false));
+    list.appendChild(hdr);
+
+    const body = document.createElement('div');
+    body.className = 'acc-body' + (isCollapsed ? ' collapsed' : '');
+    body.id = 'acc-' + type;
+    const inner = document.createElement('div');
+    inner.className = 'acc-body-inner';
+    buildRows(inner);
+    body.appendChild(inner);
+    list.appendChild(body);
+  }
+
+  // ── Sidebar ───────────────────────────────────────────────────────────────
+  function makeDraggable(row, i, srcRef, arr, lblArr, selRef, setSelRef) {
+    row.draggable = true;
+    row.addEventListener('dragstart', e=>{
+      srcRef.v=i; setTimeout(()=>row.classList.add('dragging'),0);
+      e.dataTransfer.effectAllowed='move';
+    });
+    row.addEventListener('dragend', ()=>{
+      row.classList.remove('dragging');
+      document.querySelectorAll('.drag-over').forEach(r=>r.classList.remove('drag-over'));
+      srcRef.v=null;
+    });
+    row.addEventListener('dragover', e=>{
+      e.preventDefault(); e.dataTransfer.dropEffect='move';
+      if(srcRef.v!==null&&srcRef.v!==i){
+        document.querySelectorAll('.drag-over').forEach(r=>r.classList.remove('drag-over'));
+        row.classList.add('drag-over');
+      }
+    });
+    row.addEventListener('dragleave', ()=>row.classList.remove('drag-over'));
+    row.addEventListener('drop', e=>{
+      e.preventDefault();
+      if(srcRef.v===null||srcRef.v===i) return;
+      syncLabelsFromInputs();
+      snapshot();
+      moveItem(arr,srcRef.v,i); moveItem(lblArr,srcRef.v,i);
+      setSelRef(-1); redraw();
+    });
+  }
+
+  function updateSidebar() {
+    const list = document.getElementById('box-list');
+    list.innerHTML = '';
+    const dBox={v:null}, dEllipse={v:null}, dPoly={v:null}, dPt={v:null};
+
+    makeSection(list, 'boxes', '□', 'Boxes', 'box', boxes.length, inner => {
+      boxes.forEach(([x1,y1,x2,y2], i) => {
+        const row = document.createElement('div');
+        row.className = 'box-row'+(i===selectedIdx?' active':'');
+        row.dataset.idx=i; row.dataset.type='box';
+        const w=x2-x1, h=y2-y1;
+        row.innerHTML=`
+          <div class="cell-num"><input class="pos-input num-val" type="number" min="1" max="${boxes.length}" value="${i+1}" title="Posição — clique para reordenar"><span class="drag-hint">⠿⠿</span></div>
+          <div class="cell-coords" title="x1=${x1} y1=${y1}"><div class="coord-xy">${x1}, ${y1}</div><div class="coord-size">${w} × ${h}</div></div>
+          <div class="cell-label"><input class="label-input" type="text" value="${escHtml(labels[i]||'')}" placeholder=""></div>
+          <div class="cell-del"><button class="box-del" title="Remover">×</button></div>`;
+        row.addEventListener('mousedown',e=>{
+          if(e.target.classList.contains('label-input')||e.target.classList.contains('box-del')||e.target.classList.contains('pos-input')) return;
+          selectedIdx=selectedIdx===i?-1:i; redraw();
+        });
+        row.querySelector('.box-del').addEventListener('click',e=>{e.stopPropagation();deleteBox(i);});
+        row.querySelector('.label-input').addEventListener('input',e=>{labels[i]=e.target.value;});
+        row.querySelector('.pos-input').addEventListener('change',e=>{
+          e.stopPropagation();
+          moveItemToPos(boxes,labels,i,parseInt(e.target.value)||1,v=>{selectedIdx=v;});
+        });
+        row.querySelector('.pos-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.target.blur();}});
+        makeDraggable(row,i,dBox,boxes,labels,null,v=>selectedIdx=v);
+        inner.appendChild(row);
+      });
+    });
+
+    makeSection(list, 'ellipses', '⬭', 'Elipses', 'ellipse', ellipses.length, inner => {
+      ellipses.forEach((pts, i) => {
+        const row = document.createElement('div');
+        row.className='box-row ellipse-row'+(i===selectedEllipseIdx?' active-ellipse':'');
+        row.dataset.idx=i; row.dataset.type='ellipse';
+        const xs=pts.map(p=>p[0]), ys=pts.map(p=>p[1]);
+        const minX=Math.min(...xs),minY=Math.min(...ys),maxX=Math.max(...xs),maxY=Math.max(...ys);
+        row.innerHTML=`
+          <div class="cell-num"><input class="pos-input num-val ellipse" type="number" min="1" max="${ellipses.length}" value="${i+1}" title="Posição — clique para reordenar"><span class="drag-hint">⠿⠿</span></div>
+          <div class="cell-coords"><div class="coord-xy">${Math.round(minX)}, ${Math.round(minY)}</div><div class="coord-size">${Math.round(maxX-minX)} × ${Math.round(maxY-minY)}</div></div>
+          <div class="cell-label"><input class="label-input" type="text" value="${escHtml(ellipse_labels[i]||'')}" placeholder=""></div>
+          <div class="cell-del"><button class="box-del" title="Remover">×</button></div>`;
+        row.addEventListener('mousedown',e=>{
+          if(e.target.classList.contains('label-input')||e.target.classList.contains('box-del')||e.target.classList.contains('pos-input')) return;
+          selectedEllipseIdx=selectedEllipseIdx===i?-1:i; redraw();
+        });
+        row.querySelector('.box-del').addEventListener('click',e=>{e.stopPropagation();deleteEllipse(i);});
+        row.querySelector('.label-input').addEventListener('input',e=>{ellipse_labels[i]=e.target.value;});
+        row.querySelector('.pos-input').addEventListener('change',e=>{
+          e.stopPropagation();
+          moveItemToPos(ellipses,ellipse_labels,i,parseInt(e.target.value)||1,v=>{selectedEllipseIdx=v;});
+        });
+        row.querySelector('.pos-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.target.blur();}});
+        makeDraggable(row,i,dEllipse,ellipses,ellipse_labels,null,v=>selectedEllipseIdx=v);
+        inner.appendChild(row);
+      });
+    });
+
+    makeSection(list, 'polygons', '⬡', 'Polígonos', 'poly', polygons.length, inner => {
+      polygons.forEach((pts, i) => {
+        const row = document.createElement('div');
+        row.className='box-row poly-row'+(i===selectedPolyIdx?' active-poly':'');
+        row.dataset.idx=i; row.dataset.type='poly';
+        const xs=pts.map(p=>p[0]), ys=pts.map(p=>p[1]);
+        const minX=Math.min(...xs),minY=Math.min(...ys),maxX=Math.max(...xs),maxY=Math.max(...ys);
+        row.innerHTML=`
+          <div class="cell-num"><input class="pos-input num-val poly" type="number" min="1" max="${polygons.length}" value="${i+1}" title="Posição — clique para reordenar"><span class="drag-hint">⠿⠿</span></div>
+          <div class="cell-coords"><div class="coord-xy">${Math.round(minX)}, ${Math.round(minY)}</div><div class="coord-size">${Math.round(maxX-minX)} × ${Math.round(maxY-minY)}</div></div>
+          <div class="cell-label"><input class="label-input" type="text" value="${escHtml(poly_labels[i]||'')}" placeholder=""></div>
+          <div class="cell-del"><button class="box-del" title="Remover">×</button></div>`;
+        row.addEventListener('mousedown',e=>{
+          if(e.target.classList.contains('label-input')||e.target.classList.contains('box-del')||e.target.classList.contains('pos-input')) return;
+          selectedPolyIdx=selectedPolyIdx===i?-1:i; redraw();
+        });
+        row.querySelector('.box-del').addEventListener('click',e=>{e.stopPropagation();deletePoly(i);});
+        row.querySelector('.label-input').addEventListener('input',e=>{poly_labels[i]=e.target.value;});
+        row.querySelector('.pos-input').addEventListener('change',e=>{
+          e.stopPropagation();
+          moveItemToPos(polygons,poly_labels,i,parseInt(e.target.value)||1,v=>{selectedPolyIdx=v;});
+        });
+        row.querySelector('.pos-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.target.blur();}});
+        makeDraggable(row,i,dPoly,polygons,poly_labels,null,v=>selectedPolyIdx=v);
+        inner.appendChild(row);
+      });
+    });
+
+    makeSection(list, 'points', '·', 'Pontos', 'point', points.length, inner => {
+      points.forEach(([px,py], i) => {
+        const row = document.createElement('div');
+        row.className='box-row point-row'+(i===selectedPtIdx?' active-point':'');
+        row.dataset.idx=i; row.dataset.type='point';
+        row.innerHTML=`
+          <div class="cell-num"><input class="pos-input num-val point" type="number" min="1" max="${points.length}" value="${i+1}" title="Posição — clique para reordenar"><span class="drag-hint">⠿⠿</span></div>
+          <div class="cell-coords"><div class="coord-xy">${px}, ${py}</div><div class="coord-size">pixel</div></div>
+          <div class="cell-label"><input class="label-input" type="text" value="${escHtml(point_labels[i]||'')}" placeholder=""></div>
+          <div class="cell-del"><button class="box-del" title="Remover">×</button></div>`;
+        row.addEventListener('mousedown',e=>{
+          if(e.target.classList.contains('label-input')||e.target.classList.contains('box-del')||e.target.classList.contains('pos-input')) return;
+          selectedPtIdx=selectedPtIdx===i?-1:i; redraw();
+        });
+        row.querySelector('.box-del').addEventListener('click',e=>{e.stopPropagation();deletePt(i);});
+        row.querySelector('.label-input').addEventListener('input',e=>{point_labels[i]=e.target.value;});
+        row.querySelector('.pos-input').addEventListener('change',e=>{
+          e.stopPropagation();
+          moveItemToPos(points,point_labels,i,parseInt(e.target.value)||1,v=>{selectedPtIdx=v;});
+        });
+        row.querySelector('.pos-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.target.blur();}});
+        makeDraggable(row,i,dPt,points,point_labels,null,v=>selectedPtIdx=v);
+        inner.appendChild(row);
+      });
+    });
+  }
+
+  function moveItem(arr,from,to) { arr.splice(to,0,arr.splice(from,1)[0]); }
+  function moveItemToPos(arr, lblArr, fromIdx, toPos, setSelFn) {
+    const to = Math.max(0, Math.min(arr.length - 1, toPos - 1));
+    if (to === fromIdx) return;
+    snapshot();
+    moveItem(arr, fromIdx, to);
+    moveItem(lblArr, fromIdx, to);
+    setSelFn(to);
+    redraw();
+  }
+
+  function updateCount() {
+    const b=boxes.length,el=ellipses.length,p=polygons.length,pt=points.length;
+    let t=`${b} box${b!==1?'es':''}`;
+    if(el>0) t+=`  |  ${el} elipse${el!==1?'s':''}`;
+    if(p>0)  t+=`  |  ${p} polígono${p!==1?'s':''}`;
+    if(pt>0) t+=`  |  ${pt} ponto${pt!==1?'s':''}`;
+    document.getElementById('box-count').textContent=t;
+  }
+
+  // ── Keyboard ──────────────────────────────────────────────────────────────
+  const PREV_ID = {{ prev_id|default:"null" }};
+  const NEXT_ID = {{ next_id|default:"null" }};
+  document.addEventListener('keydown',e=>{
+    // só campos de digitação bloqueiam os atalhos (o slider de bandas não)
+    if(e.target.matches('input[type=text],input[type=number],input[type=search],textarea')) return;
+    if(e.target.tagName==='SELECT' && !(e.ctrlKey||e.metaKey)) return;
+    if((e.ctrlKey||e.metaKey)&&(e.key==='s'||e.key==='S')) { e.preventDefault(); saveAnnotations(); return; }
+    if((e.ctrlKey||e.metaKey)&&(e.key==='z'||e.key==='Z')) { e.preventDefault(); undo(); return; }
+    if((e.ctrlKey||e.metaKey)&&(e.key==='y'||e.key==='Y')) { e.preventDefault(); redo(); return; }
+    if(e.key==='Escape') { closeClearModal(); if(zoomRectArmed) toggleZoomRect(false); if(mode==='polygon'&&drawing) cancelPolygon(); return; }
+    if(e.key==='Enter' && mode==='polygon' && drawing) { finishPolygon(); return; }
+    if(e.key==='z'||e.key==='Z') { toggleZoomRect(); return; }
+    if(e.key==='0') { zoomFit(); return; }
+    if(e.key==='b'||e.key==='B') setMode('box');
+    if(e.key==='e'||e.key==='E') setMode('ellipse');
+    if(e.key==='p'||e.key==='P') setMode('polygon');
+    if(e.key==='c'||e.key==='C') setMode('point');
+    if(e.key==='Delete') {
+      if(mode==='box'&&selectedIdx>=0)            deleteBox(selectedIdx);
+      if(mode==='ellipse'&&selectedEllipseIdx>=0) deleteEllipse(selectedEllipseIdx);
+      if(mode==='polygon'&&selectedPolyIdx>=0)    deletePoly(selectedPolyIdx);
+      if(mode==='point'&&selectedPtIdx>=0)        deletePt(selectedPtIdx);
+    }
+    if(e.key==='ArrowRight'&&NEXT_ID) navigate(NEXT_ID);
+    if(e.key==='ArrowLeft' &&PREV_ID) navigate(PREV_ID);
+  });
+</script>
+<!-- ── Modal IA ── -->
+<div class="modal-backdrop" id="ia-modal" onclick="closeIAModal(event)">
+  <div class="modal-box ia-modal-box" onclick="event.stopPropagation()">
+    <div class="ia-modal-title">🤖 Modelos de IA</div>
+    <div class="ia-option" id="ia-opt-det" onclick="autoDetect()">
+      <div class="ia-badge ia-badge-det">▢</div>
+      <div class="ia-info"><div class="ia-name">DET — Detecção</div><div class="ia-desc">Detecta objetos e adiciona boxes à imagem atual</div></div>
+    </div>
+    <div class="ia-option" id="ia-opt-seg" onclick="autoSegmentYolo()">
+      <div class="ia-badge ia-badge-seg">⬡</div>
+      <div class="ia-info"><div class="ia-name">SEG — Segmentação</div><div class="ia-desc">Segmenta objetos e adiciona polígonos (substitui os existentes)</div></div>
+    </div>
+    <div class="ia-option" id="ia-opt-cls" onclick="autoClassify()">
+      <div class="ia-badge ia-badge-cls">🏷</div>
+      <div class="ia-info"><div class="ia-name">CLS — Classificação</div><div class="ia-desc">{% if models.cls_spectral %}Classificador espectral do projeto: mede o espectro de cada box/elipse/polígono e prevê a classe{% else %}YOLO-cls: classifica o recorte colorido de cada box/elipse/polígono{% endif %}</div></div>
+    </div>
+    <div class="modal-btns" style="margin-top:4px">
+      <button class="modal-cancel" onclick="document.getElementById('ia-modal').classList.remove('open')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal limpar tudo ── -->
+<div class="modal-backdrop" id="clear-modal">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-title">🗑 Limpar tudo</div>
+    <div class="modal-msg" id="clear-modal-msg"></div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeClearModal()">Cancelar</button>
+      <button class="modal-confirm" onclick="confirmClearAll()">Remover tudo</button>
+    </div>
+  </div>
+</div>
+{% endblock %}

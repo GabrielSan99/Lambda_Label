@@ -1,0 +1,106 @@
+{% extends "core/base.html" %}
+{% block title %}Projetos — Lambda Label{% endblock %}
+{% block style %}
+  .page { padding: 2.2rem 2.4rem 3rem 3.6rem; max-width: 1200px; }
+  .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.6rem; }
+  .head h1 { font-size: 1.7rem; letter-spacing: -.01em; }
+  .head p { color: var(--muted); margin-top: .35rem; max-width: 640px; line-height: 1.5; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 16px; }
+  .pcard { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; text-decoration: none;
+    color: inherit; display: flex; flex-direction: column; transition: border-color .15s, transform .15s; position: relative; }
+  .pcard:hover { border-color: var(--blue); transform: translateY(-2px); }
+  .pthumb { height: 140px; background: #0b0d13; display: flex; align-items: center; justify-content: center; color: #6b7280; font-size: 2rem; }
+  .pthumb img { width: 100%; height: 100%; object-fit: cover; }
+  .pbody { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .pname { font-weight: 700; font-size: 1rem; }
+  .pdesc { font-size: .8rem; color: var(--muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .pstats { display: flex; gap: 14px; font-size: .78rem; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .pstats b { color: var(--ink); }
+  .pdel { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border-radius: 50%; border: none; cursor: pointer;
+    background: rgba(17,24,39,.6); color: #fff; opacity: 0; transition: opacity .15s, background .15s; }
+  .pcard:hover .pdel { opacity: 1; }
+  .pdel:hover { background: #dc2626; }
+  .empty { text-align: center; padding: 4rem 1rem; color: var(--muted); border: 1.5px dashed var(--line); border-radius: 14px; }
+  .empty .big { font-size: 2.6rem; margin-bottom: .5rem; }
+  .formats { margin-top: 2.4rem; }
+  .formats h2 { font-size: .74rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted2); margin-bottom: .8rem; }
+  .fmt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+  .fmt { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: .8rem; color: var(--muted); line-height: 1.45; }
+  .fmt b { color: var(--ink); display: block; font-size: .86rem; margin-bottom: 2px; }
+  .field { display: block; margin-top: 12px; font-size: .8rem; color: var(--muted); }
+  .field input, .field textarea { width: 100%; margin-top: 4px; }
+  @media (max-width: 700px) { .page { padding: 1.4rem 16px 2rem 52px; } }
+{% endblock %}
+{% block content %}
+<main class="page">
+  <div class="head">
+    <div>
+      <h1>Projetos</h1>
+      <p>Importe imagens já coletadas (VideometerLab, câmeras hiperespectrais ENVI, SpectralCrops, imagens comuns ou cubos .npy), anote — à mão ou automaticamente — e treine modelos.</p>
+    </div>
+    <button class="btn btn-primary" onclick="openCreate()">+ Novo projeto</button>
+  </div>
+
+  {% if projects %}
+  <div class="grid">
+    {% for p in projects %}
+    <a class="pcard" href="{% url 'project' p.id %}">
+      <div class="pthumb">{% if p.thumb_id %}<img src="{% url 'sample_thumb' p.thumb_id %}" alt="" loading="lazy">{% else %}📁{% endif %}</div>
+      <div class="pbody">
+        <div class="pname">{{ p.name }}</div>
+        {% if p.description %}<div class="pdesc">{{ p.description }}</div>{% endif %}
+        <div class="pstats"><span><b>{{ p.n_samples }}</b> amostras</span><span><b>{{ p.n_annotated }}</b> anotadas</span><span><b>{{ p.n_rois }}</b> ROIs</span></div>
+        {% if user.is_superuser and p.owner != user %}<div class="pstats">dono: {{ p.owner.username }}</div>{% endif %}
+      </div>
+      <button class="pdel" title="Excluir projeto" onclick="deleteProject(event, {{ p.id }}, '{{ p.name|escapejs }}', {{ p.n_samples }})">✕</button>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty"><div class="big">λ</div><p>Nenhum projeto ainda.</p><p style="margin-top:.8rem"><button class="btn btn-primary" onclick="openCreate()">Criar o primeiro projeto</button></p></div>
+  {% endif %}
+
+  <section class="formats">
+    <h2>Formatos de importação</h2>
+    <div class="fmt-grid">
+      <div class="fmt"><b>VideometerLab · .hips</b>Reflectância (%) e fluorescência, com comprimentos de onda e mm/pixel do próprio arquivo.</div>
+      <div class="fmt"><b>Hiperespectral · ENVI .hdr</b>.bil/.bip/.bsq/.raw (Resonon, Specim, Headwall…). Lido direto do disco, sem copiar.</div>
+      <div class="fmt"><b>SpectralCrops</b>Pastas de aquisição (raw/ + calibrated/) ou exports com <code>365nm.png</code>…</div>
+      <div class="fmt"><b>Imagens</b>PNG, JPG, TIFF (multipágina, 16 bits). Arquivos <code>X_RGB.jpg</code> + <code>X_CHL.jpg</code> viram uma amostra só.</div>
+      <div class="fmt"><b>Qualquer equipamento · .npy</b>Cubo (altura, largura, bandas) + <code>.json</code> opcional com comprimentos de onda e escala.</div>
+    </div>
+  </section>
+</main>
+
+<div class="modal" id="create-modal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal-box">
+    <h3>Novo projeto</h3>
+    <label class="field">Nome<input type="text" id="p-name" placeholder="ex.: Sementes de soja — safra 2026"></label>
+    <label class="field">Descrição (opcional)<textarea id="p-desc" rows="3" placeholder="objetivo, equipamento, lote…"></textarea></label>
+    <div class="modal-actions">
+      <button class="btn" onclick="document.getElementById('create-modal').classList.remove('open')">Cancelar</button>
+      <button class="btn btn-primary" onclick="createProject()">Criar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block script %}
+<script>
+  function openCreate() { document.getElementById('create-modal').classList.add('open'); setTimeout(() => document.getElementById('p-name').focus(), 50); }
+  async function createProject() {
+    const name = document.getElementById('p-name').value.trim();
+    if (!name) return;
+    const { ok, data } = await apiJSON('{% url "project_create" %}', { name, description: document.getElementById('p-desc').value });
+    if (!ok) { alert(data.error); return; }
+    window.location.href = data.url;
+  }
+  document.getElementById('p-name').addEventListener('keydown', e => { if (e.key === 'Enter') createProject(); });
+  async function deleteProject(e, id, name, n) {
+    e.preventDefault(); e.stopPropagation();
+    if (!confirm(`Excluir o projeto "${name}"?\n\nApaga as ${n} amostra(s), anotações, medições e modelos. Arquivos originais importados no modo "vincular" não são tocados.`)) return;
+    const { ok, data } = await apiJSON(`/projects/${id}/delete/`);
+    if (!ok) { alert(data.error); return; }
+    location.reload();
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,160 @@
+{% extends "core/base.html" %}
+{% load static %}
+{% block title %}Análise — {{ project.name }}{% endblock %}
+{% block style %}
+  .page { padding: 2rem 2.4rem 3rem 3.6rem; max-width: 1280px; }
+  .head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .head h1 { font-size: 1.6rem; }
+  .head p { color: var(--muted); margin-top: .35rem; font-size: .92rem; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg a { padding: 7px 12px; font-size: .84rem; color: var(--muted); text-decoration: none; background: var(--panel); }
+  .seg a.on { background: var(--blue-soft); color: var(--blue); font-weight: 600; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 1.1rem 1.2rem; margin-top: 1.2rem; }
+  .card h2 { font-size: .95rem; margin-bottom: .2rem; }
+  .card .sub { font-size: .8rem; color: var(--muted); margin-bottom: .6rem; }
+  .chart { height: 380px; background: var(--viz-surface); border-radius: 10px; }
+  .note { font-size: .78rem; color: var(--muted); margin-top: .6rem; }
+  details { margin-top: .8rem; }
+  summary { cursor: pointer; font-size: .82rem; color: var(--blue); }
+  .tbl-wrap { overflow: auto; max-height: 520px; border: 1px solid var(--line); border-radius: 10px; margin-top: .6rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+  th { position: sticky; top: 0; background: var(--panel2); text-align: left; font-size: .7rem; text-transform: uppercase;
+    letter-spacing: .04em; color: var(--muted2); padding: 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody tr:hover { background: var(--hover); }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: .6rem; }
+  .empty { text-align: center; color: var(--muted); padding: 3rem 1rem; }
+  .spark { display: block; }
+  @media (max-width: 700px) { .page { padding: 1.4rem 16px 2rem 52px; } }
+{% endblock %}
+{% block content %}
+<main class="page">
+  <div class="head">
+    <div>
+      <h1>Análise</h1>
+      <p>{{ total }} ROI(s) medido(s). Os ROIs são medidos ao salvar a anotação de cada amostra.</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="muted" style="font-size:.82rem">Agrupar por</span>
+      <div class="seg">
+        <a href="?by=image" class="{% if group_by == 'image' %}on{% endif %}">Rótulo da imagem</a>
+        <a href="?by=roi" class="{% if group_by == 'roi' %}on{% endif %}">Label do ROI</a>
+      </div>
+      <button class="btn" onclick="exportCsv()" {% if not total %}disabled{% endif %}>⬇ CSV</button>
+    </div>
+  </div>
+
+  <section class="card">
+    <h2>Espectro médio por grupo</h2>
+    <div class="sub">Média ± desvio-padrão dos ROIs de cada grupo{% if chart.x %}, por comprimento de onda{% else %}, por banda{% endif %}.</div>
+    {% if chart.series %}
+      <div class="chart" id="chart"></div>
+      <p class="note">
+        {% if info.unlabeled %}{{ info.unlabeled }} ROI(s) sem {% if group_by == 'image' %}rótulo de imagem{% else %}label{% endif %} ficaram de fora. {% endif %}
+        {% if info.incompatible %}{{ info.incompatible }} ROI(s) de amostras com outra faixa de bandas ficaram de fora. {% endif %}
+        {% if info.incomplete %}{{ info.incomplete }} ROI(s) com banda sem valor ficaram de fora. {% endif %}
+        <span id="fold-note"></span>
+      </p>
+      <details>
+        <summary>Ver os dados do gráfico em tabela</summary>
+        <div class="tbl-wrap"><table id="chart-table"></table></div>
+      </details>
+    {% else %}
+      <div class="empty">Nenhum grupo pra comparar ainda — dê um {% if group_by == 'image' %}rótulo às imagens (🏷 na grade de amostras){% else %}label às formas no editor{% endif %} e salve as anotações.</div>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>ROIs</h2>
+    {% if rows %}
+    <div class="filters">
+      <input type="search" id="q" placeholder="Buscar amostra ou label…" oninput="filterRows()" style="width:240px">
+      <select id="f-cond" onchange="filterRows()"><option value="">Todos os grupos</option>{% for c in conditions %}<option>{{ c }}</option>{% endfor %}</select>
+      <select id="f-method" onchange="filterRows()"><option value="">Todos os métodos</option>{% for m in methods %}<option>{{ m }}</option>{% endfor %}</select>
+      <span class="muted" id="row-count" style="font-size:.8rem"></span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Amostra</th><th>Grupo</th><th>Método</th><th class="num">ROI</th><th>Label</th>
+          <th class="num">Pixels</th><th class="num">Área</th><th class="num">Larg. bbox</th><th class="num">Alt. bbox</th><th>Espectro</th></tr></thead>
+        <tbody id="roi-body">
+          {% for row in rows %}{% with r=row.r %}
+          <tr data-q="{{ r.sample.name|lower }} {{ r.label|lower }}" data-cond="{{ row.condition }}" data-method="{{ r.get_method_display }}">
+            <td><a href="{% url 'annotate' r.sample.id %}">{{ r.sample.name }}</a></td>
+            <td>{{ row.condition }}</td><td>{{ r.get_method_display }}</td><td class="num">{{ r.index }}</td><td>{{ r.label|default:"—" }}</td>
+            <td class="num">{{ r.n_pixels }}</td><td class="num">{{ row.area }}</td><td class="num">{{ row.bbox_w }}</td><td class="num">{{ row.bbox_h }}</td>
+            <td><svg class="spark" width="110" height="22" data-values="{{ r.spectrum|join:',' }}" role="img" aria-label="espectro do ROI"></svg></td>
+          </tr>
+          {% endwith %}{% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">Nenhum ROI medido. Desenhe formas no editor e clique em 💾 Salvar.</div>
+    {% endif %}
+  </section>
+</main>
+{{ chart|json_script:"chart-data" }}
+{% endblock %}
+{% block script %}
+<script src="{% static 'core/charts.js' %}"></script>
+<script>
+const CHART = JSON.parse(document.getElementById('chart-data').textContent);
+const MAX_SERIES = 8;   // paleta categórica tem 8 cores fixas; o resto não ganha cor gerada
+
+function drawChart() {
+  const host = document.getElementById('chart');
+  if (!host || !CHART.series.length) return;
+  const shown = CHART.series.slice(0, MAX_SERIES);
+  spectrumChart(host, {
+    x: CHART.x, labels: CHART.labels, yLabel: '%',
+    series: shown.map((s, i) => ({ label: s.label, color: SERIES_COLORS[i], mean: s.mean, std: s.std, n: s.n })),
+    ariaLabel: 'Espectro médio por grupo',
+  });
+  if (CHART.series.length > MAX_SERIES)
+    document.getElementById('fold-note').textContent = `Mostrando os ${MAX_SERIES} primeiros de ${CHART.series.length} grupos — a tabela abaixo tem todos.`;
+}
+function buildTable() {
+  const t = document.getElementById('chart-table');
+  if (!t) return;
+  const head = '<thead><tr><th>Banda</th>' + CHART.series.map(s => `<th class="num">${escHtml(s.label)} (n=${s.n})</th>`).join('') + '</tr></thead>';
+  const f = v => v == null ? '—' : v.toFixed(2).replace('.', ',');
+  const body = CHART.labels.map((l, i) => '<tr><td>' + escHtml(l) + '</td>' +
+    CHART.series.map(s => `<td class="num">${f(s.mean[i])} ± ${f(s.std[i])}</td>`).join('') + '</tr>').join('');
+  t.innerHTML = head + '<tbody>' + body + '</tbody>';
+}
+function sparklines() {
+  document.querySelectorAll('svg.spark').forEach(svg => {
+    const vals = svg.dataset.values.split(',').map(v => v === 'None' || v === '' ? null : parseFloat(v));
+    const ok = vals.filter(v => v != null);
+    if (!ok.length) return;
+    const max = Math.max(...ok) || 1, W = 110, H = 22, n = vals.length;
+    let d = '', pen = false;
+    vals.forEach((v, i) => {
+      if (v == null) { pen = false; return; }
+      d += `${pen ? 'L' : 'M'}${(n > 1 ? i / (n - 1) * (W - 2) + 1 : W / 2).toFixed(1)},${(H - 2 - v / max * (H - 4)).toFixed(1)}`;
+      pen = true;
+    });
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('d', d);
+    Object.assign(p.style, { fill: 'none', stroke: 'var(--muted)', strokeWidth: 1.5 });
+    svg.appendChild(p);
+  });
+}
+function filterRows() {
+  const q = document.getElementById('q').value.toLowerCase(), c = document.getElementById('f-cond').value,
+        m = document.getElementById('f-method').value;
+  let n = 0;
+  document.querySelectorAll('#roi-body tr').forEach(tr => {
+    const show = tr.dataset.q.includes(q) && (!c || tr.dataset.cond === c) && (!m || tr.dataset.method === m);
+    tr.style.display = show ? '' : 'none'; if (show) n++;
+  });
+  document.getElementById('row-count').textContent = `${n} ROI(s)`;
+}
+function exportCsv() { runJob('{% url "project_export" project.id "rois" %}', {}, 'Gerando CSV dos espectros…'); }
+drawChart(); buildTable(); sparklines();
+if (document.getElementById('q')) filterRows();
+let rt = null; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(drawChart, 150); });
+</script>
+{% endblock %}

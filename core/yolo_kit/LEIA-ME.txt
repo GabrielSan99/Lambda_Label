@@ -1,0 +1,80 @@
+SpectralCrops -- Ferramenta de treino do modelo YOLO
+====================================================
+
+Esta ferramenta treina o modelo no SEU computador (o Raspberry Pi nao tem GPU).
+Voce baixa ela uma vez, e a usa pra todo dataset que exportar no SpectralCrops.
+
+Pasta da ferramenta (spectralcrops_treino.zip):
+  yolo_trainer_gui.py  -- a janela de treino
+  requirements.txt     -- dependencias (ultralytics, versao fixa)
+  iniciar_treino.bat   -- atalho pra Windows
+  iniciar_treino.sh    -- atalho pra Linux / macOS
+  LEIA-ME.txt          -- este arquivo
+  logo.png, icon.png   -- logo do SpectralCrops usado na janela
+
+
+Passo a passo
+-------------
+
+1. Instale o Python 3 (se ainda nao tiver)
+   - Windows: https://www.python.org/downloads/ -- na instalacao, marque
+     "Add python.exe to PATH".
+   - Linux / macOS: normalmente ja vem instalado (python3).
+
+2. Extraia o spectralcrops_treino.zip numa pasta fixa (ex.: Documentos\SpectralCrops_treino).
+   So precisa fazer isso uma vez.
+
+3. Abra essa pasta e inicie o treinador:
+   - Windows: de dois cliques em iniciar_treino.bat
+   - Linux / macOS: no terminal, dentro da pasta,
+       chmod +x iniciar_treino.sh   (so na primeira vez)
+       ./iniciar_treino.sh
+   Na primeira vez ele cria o ambiente (.venv) e instala o que precisa --
+   pode demorar e precisa de internet. Nas proximas vezes abre direto.
+   O terminal mostra cada etapa, inclusive se a GPU foi encontrada.
+
+4. Na janela:
+   - Clique em "Adicionar..." e selecione o data.yaml do dataset que voce
+     exportou (ele fica na pasta extraida do dataset, ex.:
+     dataset_seg_123456\data.yaml).
+   - Pra treinar com exports de MAIS DE UM projeto (ex.: dois projetos de
+     soja), clique em "Adicionar..." de novo pra cada um. Eles precisam ter
+     as mesmas classes.
+   - Escolha a tarefa: Segmentacao (se exportou Segmentacao) ou Deteccao
+     (se exportou Deteccao). Tem que ser a MESMA do dataset.
+   - Clique em "Iniciar treinamento". Uma janela pergunta ONDE salvar e o
+     NOME da pasta do treino (ja vem sugerido, ex.: treino_seg_2026-10-08_19-40;
+     a ultima pasta escolhida e lembrada). Tudo do treino vai pra essa pasta;
+     os datasets exportados nao sao alterados. O painel mostra o progresso
+     por lote e um resumo por epoca.
+
+5. Ao terminar, clique em "Abrir pasta do modelo". O arquivo que
+   importa e:
+       <pasta do treino>/weights/best.pt
+   Na mesma pasta ficam os graficos (results.png, matriz de confusao...),
+   o results.csv, o data_treino.yaml e as imagens divididas (_split_treino/).
+
+6. No SpectralCrops, abra Machine Learning, escolha o projeto certo e envie o
+   best.pt no campo de segmentacao (ou deteccao, conforme a tarefa). Depois
+   disso o botao IA da tela Annotations passa a usar esse modelo.
+
+
+Dicas
+-----
+- Treino x validacao: o treinador junta todas as imagens do(s) dataset(s) e
+  divide de novo, conforme os parametros val_split (proporcao pra
+  validacao, padrao 0.2) e split_by:
+    sample -> divide por SEMENTE. Cada imagem entra no treino e na
+              validacao; em cada copia, as sementes do outro lado sao
+              apagadas (pintadas com a cor do fundo ao redor). Funciona ate
+              com 1-2 imagens.
+    image  -> cada imagem inteira vai pra um lado so (precisa de 2+ imagens).
+  As imagens divididas ficam em <pasta do treino>/_split_treino/.
+- GPU NVIDIA: o atalho detecta a placa e, se o PyTorch estiver so com CPU,
+  instala a versao com CUDA sozinho na primeira vez (download grande, uma vez
+  so). A linha "GPU disponivel" no terminal mostra o resultado: tem que dar
+  True. Sem GPU, o treino funciona, mas demora bem mais.
+- O treino sempre usa o modelo base yolov8n-seg (segmentacao) ou yolov8n
+  (deteccao). A versao do pacote "ultralytics" esta fixada no requirements.txt
+  pra ser a mesma usada no SpectralCrops, entao o best.pt carrega la sem erro.
+  Nao troque a versao.

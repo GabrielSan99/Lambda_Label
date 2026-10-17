@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>(function(){try{var t=localStorage.getItem('lambda-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232f66e0'/%3E%3Ctext x='16' y='23' font-size='20' text-anchor='middle' fill='white' font-family='Segoe UI,sans-serif'%3E%CE%BB%3C/text%3E%3C/svg%3E">
+  <title>{% block title %}Lambda Label{% endblock %}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      color-scheme: light;
+      --bg: #f4f6f8; --panel: #ffffff; --panel2: #f7f9fb; --line: #e6e9ee; --hover: #f1f3f7;
+      --ink: #1f2937; --muted: #6b7280; --muted2: #9aa2ad;
+      --blue: #2f66e0; --blue-soft: #eaf0fd; --blue-hover: #2557c4;
+      --green: #2f9e5f; --green-soft: #e3f6e9; --red: #dc2626; --red-soft: #fdeaea;
+      --amber: #b45309; --amber-soft: #fef3e0; --violet: #7c3aed; --violet-soft: #f1e6fd;
+      /* gráficos (paleta categórica validada p/ daltonismo, ordem fixa) */
+      --viz-surface: #fcfcfb; --viz-grid: #e1e0d9; --viz-axis: #c3c2b7; --viz-muted: #898781;
+      --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948;
+      --seq-100: #cde2fb; --seq-300: #6da7ec; --seq-450: #2a78d6; --seq-600: #184f95;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:where(:not([data-theme="light"])) {
+        color-scheme: dark;
+        --bg: #0f1117; --panel: #1a1d27; --panel2: #12151e; --line: #2a2d3a; --hover: #222739;
+        --ink: #e5e7eb; --muted: #a4abbd; --muted2: #6f7688;
+        --blue: #4f8ef7; --blue-soft: #16233d; --blue-hover: #6ba2f9;
+        --green: #34d399; --green-soft: #133024; --red: #f87171; --red-soft: #3a1717;
+        --amber: #fbbf6b; --amber-soft: #33240b; --violet: #a78bfa; --violet-soft: #241a3d;
+        --viz-surface: #1a1a19; --viz-grid: #2c2c2a; --viz-axis: #383835; --viz-muted: #898781;
+        --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+        --seq-100: #104281; --seq-300: #1c5cab; --seq-450: #3987e5; --seq-600: #86b6ef;
+      }
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #0f1117; --panel: #1a1d27; --panel2: #12151e; --line: #2a2d3a; --hover: #222739;
+      --ink: #e5e7eb; --muted: #a4abbd; --muted2: #6f7688;
+      --blue: #4f8ef7; --blue-soft: #16233d; --blue-hover: #6ba2f9;
+      --green: #34d399; --green-soft: #133024; --red: #f87171; --red-soft: #3a1717;
+      --amber: #fbbf6b; --amber-soft: #33240b; --violet: #a78bfa; --violet-soft: #241a3d;
+      --viz-surface: #1a1a19; --viz-grid: #2c2c2a; --viz-axis: #383835; --viz-muted: #898781;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+      --seq-100: #104281; --seq-300: #1c5cab; --seq-450: #3987e5; --seq-600: #86b6ef;
+    }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--ink);
+           min-height: 100vh; transition: background .2s, color .2s; }
+    a { color: var(--blue); }
+    code { font-size: .82em; background: var(--panel2); border: 1px solid var(--line); padding: 0 5px; border-radius: 5px; }
+
+    /* ── menu lateral (aparece no hover do puxador, como no SpectralCrops) ── */
+    .side-trigger { position: fixed; left: 0; top: 0; height: 100vh; z-index: 500; }
+    .side-handle { position: absolute; left: 0; top: 14px; width: 40px; height: 46px; display: flex; align-items: center;
+      justify-content: center; background: var(--panel); border: 1px solid var(--line); border-left: none;
+      border-radius: 0 12px 12px 0; color: var(--muted); box-shadow: 2px 0 10px rgba(16,24,40,.08); transition: opacity .2s; }
+    .side-handle svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; }
+    .side-trigger:hover .side-handle { opacity: 0; }
+    .app-nav { position: absolute; left: 0; top: 0; height: 100vh; width: 250px; background: var(--panel);
+      border-right: 1px solid var(--line); padding: 1.4rem 1rem; display: flex; flex-direction: column; gap: 1.3rem;
+      transform: translateX(-100%); transition: transform .28s ease; box-shadow: 6px 0 24px rgba(16,24,40,.14); }
+    .side-trigger:hover .app-nav, .app-nav:focus-within { transform: translateX(0); }
+    .brand { display: flex; align-items: center; gap: 10px; padding: 0 .5rem; text-decoration: none; color: var(--ink); }
+    .brand-mark { width: 36px; height: 36px; border-radius: 10px; background: var(--blue); color: #fff; display: flex;
+      align-items: center; justify-content: center; font-size: 1.35rem; font-weight: 600; }
+    .brand-name { font-weight: 700; font-size: 1.05rem; letter-spacing: -.01em; }
+    .brand-sub { font-size: .7rem; color: var(--muted); }
+    .brand-spectrum { height: 4px; border-radius: 999px; margin: -4px .5rem 0;
+      background: linear-gradient(90deg, #7a3cff, #2b6bff, #22c55e, #f2c200, #ef4444, #6b1a1a); }
+    .app-nav nav { display: flex; flex-direction: column; gap: .3rem; }
+    .nav-section { font-size: .66rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted2);
+      padding: .6rem .9rem .2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .app-nav nav a { display: flex; align-items: center; gap: .8rem; padding: .65rem .9rem; border-radius: 10px;
+      color: var(--muted); text-decoration: none; font-size: .93rem; font-weight: 500; transition: background .15s, color .15s; }
+    .app-nav nav a svg { width: 19px; height: 19px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+    .app-nav nav a:hover { background: var(--panel2); color: var(--ink); }
+    .app-nav nav a.active { background: var(--blue); color: #fff; }
+    .nav-footer { margin-top: auto; display: flex; flex-direction: column; gap: .3rem; border-top: 1px solid var(--line); padding-top: .6rem; }
+    .theme-toggle, .user-row { display: flex; align-items: center; gap: 10px; background: none; border: none; padding: .55rem .6rem;
+      color: var(--muted); font: inherit; font-size: .85rem; border-radius: 10px; cursor: pointer; text-align: left; }
+    .theme-toggle:hover { background: var(--panel2); color: var(--ink); }
+    .user-row { cursor: default; }
+    .user-row .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--blue-soft); color: var(--blue);
+      display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .82rem; flex-shrink: 0; }
+    .user-row .uname { flex: 1; color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+    .user-row form { display: flex; }
+    .logout-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 5px; border-radius: 8px; display: flex; }
+    .logout-btn:hover { color: var(--red); background: var(--panel2); }
+    .logout-btn svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.9; }
+
+    /* ── componentes comuns ── */
+    .btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 7px 13px;
+      font: inherit; font-size: .85rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+      text-decoration: none; white-space: nowrap; transition: background .15s, border-color .15s, color .15s; }
+    .btn:hover { border-color: var(--blue); color: var(--blue); }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+    .btn-primary:hover { background: var(--blue-hover); border-color: var(--blue-hover); color: #fff; }
+    .btn-danger:hover { border-color: var(--red); color: var(--red); }
+    input[type=text], input[type=search], input[type=number], textarea, select {
+      background: var(--panel); border: 1px solid var(--line); color: var(--ink); padding: 7px 10px; border-radius: 7px;
+      font: inherit; font-size: .88rem; }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: var(--blue); }
+    .muted { color: var(--muted); }
+    .flash { margin: 12px 24px 0 56px; padding: 10px 14px; border-radius: 8px; background: var(--amber-soft); color: var(--amber); font-size: .88rem; }
+
+    .modal { position: fixed; inset: 0; background: rgba(16,24,40,.45); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
+    .modal.open { display: flex; }
+    .modal-box { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 24px 26px; width: 460px;
+      max-width: 100%; max-height: calc(100vh - 32px); overflow: auto; box-shadow: 0 12px 40px rgba(16,24,40,.18); }
+    .modal-box h3 { font-size: 1.08rem; margin-bottom: 6px; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+
+    .job-overlay { position: fixed; inset: 0; background: rgba(15,17,23,.55); z-index: 2000; display: flex; align-items: center; justify-content: center; }
+    .job-overlay[hidden] { display: none; }
+    .job-box { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 1.3rem 1.5rem; width: min(400px, 90vw); }
+    .job-title { font-weight: 700; margin-bottom: .3rem; }
+    .job-msg { font-size: .82rem; color: var(--muted); margin-bottom: .8rem; min-height: 1.1em; }
+    .job-track { height: 10px; background: var(--panel2); border-radius: 999px; overflow: hidden; border: 1px solid var(--line); }
+    .job-fill { height: 100%; width: 0; background: var(--blue); transition: width .25s; }
+    .job-pct { font-size: .78rem; color: var(--muted2); margin-top: .45rem; text-align: right; font-variant-numeric: tabular-nums; }
+    {% block style %}{% endblock %}
+  </style>
+</head>
+<body class="{% block body_class %}{% endblock %}">
+{% with url_name=request.resolver_match.url_name %}
+<div class="side-trigger">
+  <div class="side-handle" aria-label="Abrir menu"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></div>
+  <aside class="app-nav">
+    <a class="brand" href="{% url 'index' %}">
+      <span class="brand-mark">λ</span>
+      <span><span class="brand-name">Lambda Label</span><br><span class="brand-sub">anotação espectral</span></span>
+    </a>
+    <div class="brand-spectrum"></div>
+    <nav>
+      <a class="{% if url_name == 'index' %}active{% endif %}" href="{% url 'index' %}">
+        <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Projetos</a>
+      {% if project %}
+      <div class="nav-section" title="{{ project.name }}">{{ project.name }}</div>
+      <a class="{% if url_name == 'project' or url_name == 'annotate' %}active{% endif %}" href="{% url 'project' project.id %}">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Amostras</a>
+      <a class="{% if url_name == 'analysis' %}active{% endif %}" href="{% url 'analysis' project.id %}">
+        <svg viewBox="0 0 24 24"><path d="M3 20h18"/><path d="M4 16c3-8 5-10 8-4s5 3 8-6"/></svg>Análise</a>
+      <a class="{% if url_name == 'ml' %}active{% endif %}" href="{% url 'ml' project.id %}">
+        <svg viewBox="0 0 24 24"><rect x="5" y="7" width="14" height="12" rx="3"/><path d="M12 3v4M9 12h.01M15 12h.01M9 16h6"/></svg>Machine Learning</a>
+      {% endif %}
+    </nav>
+    <div class="nav-footer">
+      <button class="theme-toggle" onclick="toggleTheme()">◐ Alternar tema</button>
+      {% if user.is_authenticated %}
+      <div class="user-row">
+        <span class="avatar">{{ user.username|first|upper }}</span><span class="uname">{{ user.username }}</span>
+        <form method="post" action="{% url 'logout' %}">{% csrf_token %}
+          <button class="logout-btn" title="Sair"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </aside>
+</div>
+{% endwith %}
+
+{% for m in messages %}<div class="flash">{{ m }}</div>{% endfor %}
+
+{% block content %}{% endblock %}
+
+<div class="job-overlay" id="job-overlay" hidden>
+  <div class="job-box">
+    <div class="job-title" id="job-title">Processando…</div>
+    <div class="job-msg" id="job-msg"></div>
+    <div class="job-track"><div class="job-fill" id="job-fill"></div></div>
+    <div class="job-pct" id="job-pct">0%</div>
+  </div>
+</div>
+
+<script>
+  const CSRF = '{{ csrf_token }}';
+  function toggleTheme() {
+    const root = document.documentElement;
+    const dark = root.getAttribute('data-theme') === 'dark' ||
+      (!root.getAttribute('data-theme') && matchMedia('(prefers-color-scheme: dark)').matches);
+    const next = dark ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('lambda-theme', next); } catch (e) {}
+    window.dispatchEvent(new Event('themechange'));
+  }
+  async function apiJSON(url, obj) {
+    const r = await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' },
+                                 body: JSON.stringify(obj || {}) });
+    let data = {};
+    try { data = await r.json(); } catch (e) { data = { error: `Erro ${r.status}` }; }
+    return { ok: r.ok && data.ok !== false && !data.error, data };
+  }
+  function escHtml(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function setJob(frac, title, msg) {
+    const pct = Math.round(Math.max(0, Math.min(1, frac)) * 100);
+    if (title !== undefined) document.getElementById('job-title').textContent = title;
+    if (msg !== undefined && msg !== null) document.getElementById('job-msg').textContent = msg;
+    document.getElementById('job-fill').style.width = pct + '%';
+    document.getElementById('job-pct').textContent = pct + '%';
+  }
+  // Acompanha uma tarefa em segundo plano; baixa o arquivo se houver. Devolve o status final.
+  async function waitJob(jobId, title) {
+    const overlay = document.getElementById('job-overlay');
+    overlay.hidden = false; setJob(0, title, '');
+    try {
+      for (;;) {
+        await new Promise(res => setTimeout(res, 400));
+        const st = await fetch(`/jobs/${jobId}/`).then(r => r.json());
+        setJob(st.progress, title, st.message);
+        if (st.done) {
+          if (st.error) throw new Error(st.error);
+          if (st.download) window.location.href = `/jobs/${jobId}/download/`;
+          return st;
+        }
+      }
+    } finally { overlay.hidden = true; }
+  }
+  async function runJob(url, body, title) {
+    const { ok, data } = await apiJSON(url, body);
+    if (!ok) { alert(data.error || 'Falha ao iniciar.'); return null; }
+    try { return await waitJob(data.job, title); }
+    catch (e) { alert(e.message || 'Erro.'); return null; }
+  }
+</script>
+{% block script %}{% endblock %}
+</body>
+</html>
